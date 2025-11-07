@@ -194,6 +194,10 @@ bool chonky_is_gt(BigNum a, BigNum b) {
 	return FALSE;
 }
 
+u8 subtractor(u8 a, u8 b, u8 c) {
+	return (a ^ b ^ c) | (((~a & c) | (~a & b) | (b & c)) << 1);
+}
+
 BigNum chonky_sum(BigNum a, BigNum b) {
 	if (a.data == NULL || b.data == NULL) {
 		WARNING_LOG("Parameters must be not null.");
@@ -211,35 +215,20 @@ BigNum chonky_sum(BigNum a, BigNum b) {
 
 	res.sign = (a.sign && b.sign) || (chonky_is_gt(a, b) && a.sign) || (chonky_is_gt(b, a) && b.sign);
 		
-	if ((!a.sign && !b.sign) || (a.sign && b.sign)) {
-		for (s64 i = size - 1; i >= 0; --i) {
-			if (i < (s64) a.size) *((s16*) (res.data + i)) += (s16) (a.data)[i];
-			if (i < (s64) b.size) *((s16*) (res.data + i)) += (s16) (b.data)[i];
+	// Valid Subtractor
+	u8 val = 0;
+	for (u64 i = 0; i <= size; ++i) {
+		u8* acc = (u8*) (res.data + i);
+		const u8 a_val = (i < a.size) ? (a.data)[i] : 0;
+		const u8 b_val = (i < b.size) ? (b.data)[i] : 0;
+		for (u8 j = 0; j < 8; ++j) {
+			val = subtractor(a_val >> j, b_val >> j, val >> 1);
+			*acc += (val & 0x01) << j;
 		}
-	} else if (a.sign && !b.sign) {
-		if (chonky_is_gt(a, b)) { 
-			for (s64 i = size - 1; i >= 0; --i) {
-				if (i < (s64) a.size) *((s16*) (res.data + i)) += (s16) (a.data)[i];
-				if (i < (s64) b.size) *((s16*) (res.data + i)) -= (s16) (b.data)[i];
-			}
-		} else {
-			for (s64 i = size - 1; i >= 0; --i) {
-				if (i < (s64) a.size) *((s16*) (res.data + i)) -= (s16) (a.data)[i];
-				if (i < (s64) b.size) *((s16*) (res.data + i)) += (s16) (b.data)[i];
-			}
-		}
-	} else if (!a.sign && b.sign) {
-		if (chonky_is_gt(b, a)) {
-			for (s64 i = size - 1; i >= 0; --i) {
-				if (i < (s64) a.size) *((s16*) (res.data + i)) -= (s16) (a.data)[i];
-				if (i < (s64) b.size) *((s16*) (res.data + i)) += (s16) (b.data)[i];
-			}
-		} else {
-			for (s64 i = size - 1; i >= 0; --i) {
-				if (i < (s64) a.size) *((s16*) (res.data + i)) = (s16) (a.data)[i];
-				if (i < (s64) b.size) *((s16*) (res.data + i)) -= (s16) (b.data)[i];
-			}
-		}
+	}
+
+	if (res.sign) {
+		// TODO: should convert the result from 2-complements ? 
 	}
 
 	return res;
