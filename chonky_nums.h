@@ -1,6 +1,8 @@
 #ifndef _CHONKY_NUMS_H_
 #define _CHONKY_NUMS_H_
 
+#include <immintrin.h>
+
 #ifndef NO_INLINE
 	#define NO_INLINE __attribute__((__noinline__))
 #endif //NO_INLINE
@@ -150,14 +152,18 @@ void print_chonky_num(char* name, BigNum num) {
 	return;
 }
 
+static inline u64 align_64(u64 val) {
+	return val + (val % 8 ? (8 - (val % 8)) : 0);
+}
+
 BigNum alloc_chonky_num(const u8 data[], const u64 size, bool sign) {
-	BigNum num = { .sign = sign, .size = size };
+	BigNum num = { .sign = sign, .size = align_64(size) };
 	num.data = calloc(num.size, sizeof(u8));
 	if (num.data == NULL) {
 		WARNING_LOG("Failed to allocate data buffer.");
 		return (BigNum) {0};
 	}
-	mem_cpy(num.data, data, num.size);
+	mem_cpy(num.data, data, size);
 	return num;
 }
 
@@ -194,18 +200,51 @@ bool chonky_is_gt(BigNum a, BigNum b) {
 	return FALSE;
 }
 
-u8 subtractor(u8 a, u8 b, u8 c) {
-	return (a ^ b ^ c) | (((~a & c) | (~a & b) | (b & c)) << 1);
+BigNum __chonky_add(BigNum res, BigNum a, BigNum b) {
+	const u64 size = MAX(a.size, b.size);
+	const u64 size_64 = size / 8; 
+	
+	u64 carry = 0;
+	for (u64 i = 0; i <= size_64; ++i) {
+		u64* acc = (u64*) (res.data + i * 8);
+		const u64 a_val = (i < a.size) ? ((u64*) a.data)[i] : 0;
+		const u64 b_val = (i < b.size) ? ((u64*) b.data)[i] : 0;
+		carry = _addcarry_u64(carry, a_val, b_val, acc);
+	}
+
+	return res;
 }
 
-BigNum chonky_sum(BigNum a, BigNum b) {
+BigNum __chonky_sub(BigNum res, BigNum a, BigNum b) {
+	const u64 size = MAX(a.size, b.size);
+	const u64 size_64 = size / 8; 
+	
+	u64 carry = 0;
+	for (u64 i = 0; i <= size_64; ++i) {
+		u64* acc = (u64*) (res.data + i * 8);
+		const u64 a_val = (i < a.size) ? ((u64*) a.data)[i] : 0;
+		const u64 b_val = (i < b.size) ? ((u64*) b.data)[i] : 0;
+		carry = _subborrow_u64(carry, a_val, b_val, acc);
+	}
+	
+	if (res.sign) {
+		for (u64 i = 0; i <= size_64; ++i) {
+			u64* acc = (u64*) (res.data + i * 8);
+			*acc = ~*acc + 1;	
+		}
+	}
+
+	return res;
+}
+
+BigNum chonky_add(BigNum a, BigNum b) {
 	if (a.data == NULL || b.data == NULL) {
 		WARNING_LOG("Parameters must be not null.");
 		return (BigNum) {0};
 	}
 
 	u64 size = MAX(a.size, b.size);
-	BigNum res = { .size = size + 1 };
+	BigNum res = { .size = align_64(size + 1) };
 
 	res.data = calloc(res.size, sizeof(u8));
 	if (res.data == NULL) {
@@ -213,24 +252,22 @@ BigNum chonky_sum(BigNum a, BigNum b) {
 		return (BigNum) {0};
 	}
 
-	res.sign = (a.sign && b.sign) || (chonky_is_gt(a, b) && a.sign) || (chonky_is_gt(b, a) && b.sign);
-		
-	// Valid Subtractor
-	u8 val = 0;
-	for (u64 i = 0; i <= size; ++i) {
-		u8* acc = (u8*) (res.data + i);
-		const u8 a_val = (i < a.size) ? (a.data)[i] : 0;
-		const u8 b_val = (i < b.size) ? (b.data)[i] : 0;
-		for (u8 j = 0; j < 8; ++j) {
-			val = subtractor(a_val >> j, b_val >> j, val >> 1);
-			*acc += (val & 0x01) << j;
-		}
-	}
+	res.sign = (a.sign && b.sign)             || 
+		       (chonky_is_gt(a, b) && a.sign) || 
+			   (chonky_is_gt(b, a) && b.sign);
+	
+	if ((a.sign && !b.sign) || (!a.sign && b.sign)) {
+		const BigNum minuend = a.sign ? b : a;
+		const BigNum subtraend = a.sign ? a : b;
+		res = __chonky_sub(res, minuend, subtraend);
+	} else res = __chonky_add(res, a, b);
 
-	if (res.sign) {
-		// TODO: should convert the result from 2-complements ? 
-	}
+	return res;
+}
 
+BigNum chonky_sub(BigNum a, BigNum b) {
+	b.sign = !b.sign;
+	BigNum res = chonky_add(a, b);
 	return res;
 }
 
