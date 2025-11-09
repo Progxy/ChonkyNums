@@ -96,6 +96,14 @@ typedef u8 bool;
 
 #ifdef _CHONKY_NUMS_UTILS_IMPLEMENTATION_
 
+#define CHONKY_ASSERT(condition) chonky_assert(condition, #condition, __FILE__, __LINE__, __func__)
+UNUSED_FUNCTION static void chonky_assert(bool condition, const char* condition_str, const char* file, const int line, const char* func) {
+	if (condition) return;
+	printf(COLOR_STR("ASSERT::%s:%u: ", ERROR_COLOR) "Failed to assert condition " COLOR_STR("'%s'", BLUE) " in function " COLOR_STR("'%s'", PURPLE) "\n", file, line, condition_str, func);
+	abort();
+	return;
+}
+
 UNUSED_FUNCTION static u64 str_len(const char* str) {
 	if (str == NULL) return 0;
 	u64 i = 0;
@@ -140,8 +148,12 @@ UNUSED_FUNCTION static void mem_set_var(void* ptr, int value, size_t size, size_
 
 #endif // _CHONKY_NUMS_UTILS_IMPLEMENTATION_
 
+// TODO: Use the data_64 entry instead of the one u8 one when casting
 typedef struct BigNum {
-	u8* data;
+	union {
+		u8* data;
+		u64* data_64;
+	};
 	u64 size;
 	u8 sign;
 } BigNum;
@@ -162,13 +174,30 @@ static inline u64 align_64(u64 val) {
 
 BigNum alloc_chonky_num(const u8 data[], const u64 size, bool sign) {
 	BigNum num = { .sign = sign, .size = align_64(size) };
+	
 	num.data = calloc(num.size, sizeof(u8));
 	if (num.data == NULL) {
 		WARNING_LOG("Failed to allocate data buffer.");
 		return (BigNum) {0};
 	}
+	
 	mem_cpy(num.data, data, size);
+	
 	return num;
+}
+
+static BigNum dup_chonky_num(BigNum num) {
+	BigNum duped = num;
+
+	duped.data = calloc(duped.size, sizeof(u8));
+	if (duped.data == NULL) {
+		WARNING_LOG("Failed to allocate data buffer.");
+		return (BigNum) {0};
+	}
+
+	mem_cpy(duped.data, num.data, num.size);
+	
+	return duped;
 }
 
 #define DEALLOC_CHONKY_NUMS(...) dealloc_chonky_nums((sizeof((BigNum*[]){__VA_ARGS__}) / sizeof(BigNum*)),  __VA_ARGS__)
@@ -204,7 +233,20 @@ bool chonky_is_gt(BigNum a, BigNum b) {
 	return FALSE;
 }
 
-BigNum __chonky_add(BigNum res, BigNum a, BigNum b) {
+bool is_chonky_zero(BigNum num) {
+	if (num.data == NULL) {
+		WARNING_LOG("Parameters must be not null.");
+		return FALSE;
+	}
+
+	for (u64 i = 0; i < num.size; ++i) {
+		if (num.data_64[i]) return FALSE;
+	}
+	
+	return TRUE;
+}
+
+static BigNum __chonky_add(BigNum res, BigNum a, BigNum b) {
 	const u64 size_64 = res.size / 8; 
 	
 	u64 carry = 0;
@@ -218,7 +260,7 @@ BigNum __chonky_add(BigNum res, BigNum a, BigNum b) {
 	return res;
 }
 
-BigNum __chonky_sub(BigNum res, BigNum a, BigNum b) {
+static BigNum __chonky_sub(BigNum res, BigNum a, BigNum b) {
 	const u64 size_64 = res.size / 8; 
 	
 	u64 carry = 0;
@@ -239,12 +281,58 @@ BigNum __chonky_sub(BigNum res, BigNum a, BigNum b) {
 	return res;
 }
 
-BigNum __chonky_mul_s(BigNum res, BigNum a, BigNum b) {
+static BigNum __chonky_mul_s(BigNum res, BigNum a, BigNum b) {
 	for (u64 i = 0; i < a.size / 8; ++i) {
 		for (u64 j = 0; j < b.size / 8; ++j) {
 			*((u128*) res.data + (i + j) * 8) += (u128) ((u64*) a.data)[i] * ((u64*) b.data)[j];
 		}
 	}
+	return res;
+}
+
+// TODO: Find a better name
+static void __chonky_carve(u64 size_diff, BigNum a, BigNum b, u64 c) {
+	const u64 size_64 = b.size / 8; 
+	
+	u64 i = 0;
+	u64 carry = 0;
+	for (i = 0; i < size_64; ++i) {
+		u128 val = (u128) b.data_64[i] * c;
+		carry = _subborrow_u64(carry, a.data_64[i + size_diff], (u64) val, a.data_64 + i + size_diff);
+		carry += (u64) (val >> 64);
+	}
+
+	CHONKY_ASSERT(!carry);
+	// TODO: This should probably not be necessary
+	// if (carry) _subborrow_u64(carry, a.data_64[i + size_diff], 0, a.data_64 + i + size_diff);
+	
+	return;
+}
+
+static BigNum __chonky_div(BigNum res, BigNum a, BigNum b) {
+	CHONKY_ASSERT(a.size >= b.size);
+	
+	BigNum a_c = dup_chonky_num(a);
+	BigNum b_c = dup_chonky_num(b);
+	
+	a_c.sign = 0;
+	b_c.sign = 0;
+
+	const u64 high_limit = (a.size / 8) - 1;
+	const u64 low_limit  = (b.size / 8) - 1;
+
+	for (s64 i = high_limit; i >= (s64) low_limit; --i) {
+		// Perform the division with the upper components
+		const u8 additional = (low_limit > 0) ? (b_c.data_64[low_limit - 1] && (b_c.data_64[low_limit - 1] >= a_c.data_64[i - 1])) : 0;
+		u64 q_hat = a_c.data_64[i] / (b_c.data_64[low_limit] + additional);
+		__chonky_carve(i - low_limit, a_c, b_c, q_hat);
+		res.data_64[i - low_limit] += q_hat;
+		
+		if (chonky_is_gt(b_c, a_c)) break;
+	}
+	
+	DEALLOC_CHONKY_NUMS(&a_c, &b_c);
+
 	return res;
 }
 
@@ -302,26 +390,26 @@ BigNum chonky_mul(BigNum a, BigNum b) {
 	return res;
 }
 
-/* BigNum chonky_div(BigNum a, BigNum b) { */
-/* 	if (a.data == NULL || b.data == NULL) { */
-/* 		WARNING_LOG("Parameters must be not null."); */
-/* 		return (BigNum) {0}; */
-/* 	} */
+BigNum chonky_div(BigNum a, BigNum b) {
+	if (a.data == NULL || b.data == NULL) {
+		WARNING_LOG("Parameters must be not null.");
+		return (BigNum) {0};
+	}
 
-/* 	BigNum res = { .size = align_64(MAX(a.size, b.size)) }; */
+	BigNum res = { .size = align_64(MAX(a.size, b.size)) };
 
-/* 	res.data = calloc(res.size, sizeof(u8)); */
-/* 	if (res.data == NULL) { */
-/* 		WARNING_LOG("Failed to allocate data buffer."); */
-/* 		return (BigNum) {0}; */
-/* 	} */
+	res.data = calloc(res.size, sizeof(u8));
+	if (res.data == NULL) {
+		WARNING_LOG("Failed to allocate data buffer.");
+		return (BigNum) {0};
+	}
 
-/* 	res.sign = a.sign | b.sign; */
+	res.sign = a.sign | b.sign;
 	
-/* 	res = __chonky_div_s(res, a, b); */
+	res = __chonky_div(res, a, b);
 
-/* 	return res; */
-/* } */
+	return res;
+}
 
 #endif //_CHONKY_NUMS_H_
 
