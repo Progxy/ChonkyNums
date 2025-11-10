@@ -369,6 +369,18 @@ static BigNum __chonky_div(BigNum res, BigNum a, BigNum b) {
 	return res;
 }
 
+static BigNum __chonky_pow(BigNum res, BigNum num, BigNum exp) {
+	return res;
+}
+
+static BigNum __chonky_mod(BigNum res, BigNum num, BigNum exp) {
+	return res;
+}
+
+static BigNum __chonky_mod_mersenne(BigNum res, BigNum num, BigNum exp) {
+	return res;
+}
+
 BigNum chonky_add(BigNum a, BigNum b) {
 	if (a.data == NULL || b.data == NULL) {
 		WARNING_LOG("Parameters must be not null.");
@@ -440,6 +452,79 @@ BigNum chonky_div(BigNum a, BigNum b) {
 	res.sign = a.sign | b.sign;
 	
 	res = __chonky_div(res, a, b);
+	
+	chonky_resize(&res, chonky_real_size(res));
+
+	return res;
+}
+
+BigNum chonky_pow(BigNum num, BigNum exp) {
+	if (num.data == NULL || exp.data == NULL) {
+		WARNING_LOG("Parameters must be not null.");
+		return (BigNum) {0};
+	}
+
+	const u64 size = chonky_real_size(num) * chonky_real_size(exp);
+	BigNum res = { .size = align_64(size) };
+
+	res.data = calloc(res.size, sizeof(u8));
+	if (res.data == NULL) {
+		WARNING_LOG("Failed to allocate data buffer.");
+		return (BigNum) {0};
+	}
+
+	res.sign = num.sign * (exp.data[0] & 0x01);
+	
+	res = __chonky_pow(res, num, exp);
+	
+	chonky_resize(&res, chonky_real_size(res));
+
+	return res;
+}
+
+BigNum chonky_mod(BigNum num, BigNum mod) {
+	if (num.data == NULL || mod.data == NULL) {
+		WARNING_LOG("Parameters must be not null.");
+		return (BigNum) {0};
+	}
+
+	const u64 size = chonky_real_size(mod);
+	BigNum res = { .size = align_64(size), .sign = 0 };
+
+	res.data = calloc(res.size, sizeof(u8));
+	if (res.data == NULL) {
+		WARNING_LOG("Failed to allocate data buffer.");
+		return (BigNum) {0};
+	}
+
+	res = __chonky_mod(res, num, mod);
+	
+	chonky_resize(&res, chonky_real_size(res));
+
+	return res;
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * NOTE:                                                   * 
+ * We do not check if the mod given is a Mersenne prime,   *
+ * as that's the job of the caller                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+BigNum chonky_mod_mersenne(BigNum num, BigNum mod) {
+	if (num.data == NULL || mod.data == NULL) {
+		WARNING_LOG("Parameters must be not null.");
+		return (BigNum) {0};
+	}
+
+	const u64 size = chonky_real_size(mod);
+	BigNum res = { .size = align_64(size), .sign = 0 };
+
+	res.data = calloc(res.size, sizeof(u8));
+	if (res.data == NULL) {
+		WARNING_LOG("Failed to allocate data buffer.");
+		return (BigNum) {0};
+	}
+
+	res = __chonky_mod_mersenne(res, num, mod);
 	
 	chonky_resize(&res, chonky_real_size(res));
 
