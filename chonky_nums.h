@@ -200,6 +200,38 @@ static BigNum dup_chonky_num(BigNum num) {
 	return duped;
 }
 
+static u64 chonky_real_size(BigNum num) {
+	u64 size = num.size;
+	for (s64 i = num.size - 1; i >= 0; --i) {
+		if (num.data[i]) break;
+		size--;
+	}
+	return size;
+}
+
+static u64 chonky_real_size_64(BigNum num) {
+	u64 size = num.size / 8;
+	for (s64 i = (num.size / 8) - 1; i >= 0; --i) {
+		if (num.data_64[i]) break;
+		size--;
+	}
+	return size;
+}
+
+static int chonky_resize(BigNum* num, u64 new_size) {
+	new_size = align_64(new_size);
+
+	num -> data = realloc(num -> data, new_size * sizeof(u8));
+	if (num -> data == NULL) {
+		WARNING_LOG("Failed to allocate data buffer.");
+		return -1;
+	}
+
+	num -> size = new_size;
+	
+	return 0;
+}
+
 #define DEALLOC_CHONKY_NUMS(...) dealloc_chonky_nums((sizeof((BigNum*[]){__VA_ARGS__}) / sizeof(BigNum*)),  __VA_ARGS__)
 void dealloc_chonky_nums(int len, ...) {
 	va_list args;
@@ -222,10 +254,13 @@ bool chonky_is_gt(BigNum a, BigNum b) {
 		return FALSE;
 	}
 
-	if (a.size > b.size) return TRUE;
-	else if (a.size < b.size) return FALSE;
+	u64 a_size = chonky_real_size(a);
+	u64 b_size = chonky_real_size(b);
 
-	for (s64 i = a.size; i >= 0; --i) {
+	if (a_size > b_size) return TRUE;
+	else if (a_size < b_size) return FALSE;
+
+	for (s64 i = a_size - 1; i >= 0; --i) {
 		if (a.data[i] > b.data[i]) return TRUE;
 		else if (b.data[i] > a.data[i]) return FALSE;
 	}
@@ -290,8 +325,7 @@ static BigNum __chonky_mul_s(BigNum res, BigNum a, BigNum b) {
 	return res;
 }
 
-// TODO: Find a better name
-static void __chonky_carve(u64 size_diff, BigNum a, BigNum b, u64 c) {
+static void __chonky_divstep(u64 size_diff, BigNum a, BigNum b, u64 c) {
 	const u64 size_64 = b.size / 8; 
 	
 	u64 i = 0;
@@ -318,17 +352,16 @@ static BigNum __chonky_div(BigNum res, BigNum a, BigNum b) {
 	a_c.sign = 0;
 	b_c.sign = 0;
 
-	const u64 high_limit = (a.size / 8) - 1;
 	const u64 low_limit  = (b.size / 8) - 1;
 
-	for (s64 i = high_limit; i >= (s64) low_limit; --i) {
+	u64 i = chonky_real_size_64(a_c) - 1;
+	while (!chonky_is_gt(b_c, a_c)) {
 		// Perform the division with the upper components
 		const u8 additional = (low_limit > 0) ? (b_c.data_64[low_limit - 1] && (b_c.data_64[low_limit - 1] >= a_c.data_64[i - 1])) : 0;
 		u64 q_hat = a_c.data_64[i] / (b_c.data_64[low_limit] + additional);
-		__chonky_carve(i - low_limit, a_c, b_c, q_hat);
+		__chonky_divstep(i - low_limit, a_c, b_c, q_hat);
 		res.data_64[i - low_limit] += q_hat;
-		
-		if (chonky_is_gt(b_c, a_c)) break;
+		i = chonky_real_size_64(a_c) - 1;
 	}
 	
 	DEALLOC_CHONKY_NUMS(&a_c, &b_c);
@@ -407,6 +440,8 @@ BigNum chonky_div(BigNum a, BigNum b) {
 	res.sign = a.sign | b.sign;
 	
 	res = __chonky_div(res, a, b);
+	
+	chonky_resize(&res, chonky_real_size(res));
 
 	return res;
 }
