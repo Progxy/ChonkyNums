@@ -22,33 +22,37 @@
 
 #ifdef _CHONKY_NUMS_SPECIAL_TYPE_SUPPORT_
 
-#define STATIC_ASSERT          _Static_assert
+#define STATIC_ASSERT _Static_assert
+
+typedef unsigned char bool;
 
 typedef unsigned char      u8;
 typedef unsigned short     u16;
 typedef unsigned int       u32;
 typedef unsigned long long u64;
-typedef unsigned __int128  u128;
+
+STATIC_ASSERT(sizeof(u8)  == 1, "u8  must be 1 byte");
+STATIC_ASSERT(sizeof(u16) == 2, "u16 must be 2 bytes");
+STATIC_ASSERT(sizeof(u32) == 4, "u32 must be 4 bytes");
+STATIC_ASSERT(sizeof(u64) == 8, "u64 must be 8 bytes");
 
 typedef char      s8;
 typedef short     s16;
 typedef int       s32;
 typedef long long s64;
-typedef __int128  s128;
 
-STATIC_ASSERT(sizeof(u8)   == 1,   "u8   must be 1  byte");
-STATIC_ASSERT(sizeof(u16)  == 2,   "u16  must be 2  bytes");
-STATIC_ASSERT(sizeof(u32)  == 4,   "u32  must be 4  bytes");
-STATIC_ASSERT(sizeof(u64)  == 8,   "u64  must be 8  bytes");
-STATIC_ASSERT(sizeof(u128) == 16,  "u128 must be 16 bytes");
+STATIC_ASSERT(sizeof(s8)  == 1, "s8  must be 1 byte");
+STATIC_ASSERT(sizeof(s16) == 2, "s16 must be 2 bytes");
+STATIC_ASSERT(sizeof(s32) == 4, "s32 must be 4 bytes");
+STATIC_ASSERT(sizeof(s64) == 8, "s64 must be 8 bytes");
 
-STATIC_ASSERT(sizeof(s8)   == 1,  "s8   must be 1  byte");
-STATIC_ASSERT(sizeof(s16)  == 2,  "s16  must be 2  bytes");
-STATIC_ASSERT(sizeof(s32)  == 4,  "s32  must be 4  bytes");
-STATIC_ASSERT(sizeof(s64)  == 8,  "s64  must be 8  bytes");
-STATIC_ASSERT(sizeof(s128) == 16, "s128 must be 16 bytes");
+#ifdef __SIZEOF_INT128__
+	__extension__ typedef unsigned __int128 u128;
+	__extension__ typedef          __int128 s128;
 
-typedef u8 bool;
+	STATIC_ASSERT(sizeof(u128) == 16, "u128 must be 16 bytes");
+	STATIC_ASSERT(sizeof(s128) == 16, "s128 must be 16 bytes");
+#endif //__SIZEOF_INT128__
 
 #endif //_CHONKY_NUMS_SPECIAL_TYPE_SUPPORT_
 
@@ -302,7 +306,7 @@ static bool chonky_is_gt(BigNum a, BigNum b) {
 	return FALSE;
 }
 
-static bool is_chonky_zero(BigNum num) {
+UNUSED_FUNCTION static bool is_chonky_zero(BigNum num) {
 	if (num.data == NULL) {
 		WARNING_LOG("Parameters must be not null.");
 		return FALSE;
@@ -452,7 +456,7 @@ static BigNum __chonky_mod_mersenne(BigNum res, BigNum num, BigNum base) {
 	}
 	
 	const u64 size = chonky_real_size_64(base);
-	const u64 num_size = chonky_real_size_64(num);
+	u64 num_size = chonky_real_size_64(num);
 	const u64 steps = (num_size - (num_size % size)) / size + !!(num_size % size);
 
 	BigNum temp_res = dup_chonky_num(num);
@@ -460,13 +464,13 @@ static BigNum __chonky_mod_mersenne(BigNum res, BigNum num, BigNum base) {
 	BigNum high = alloc_chonky_num(NULL, size, 0);
 	mem_cpy(low.data, temp_res.data, size);
 	
-	for (u64 i = 0; i < steps; ++i) {
+	for (u64 i = 0; i < steps; ++i, num_size -= size) {
 		__chonky_rshift(temp_res, size * 8);
-		mem_cpy(high.data, temp_res.data, MIN(size, num_size - (i + 1) * size));
+		mem_cpy(high.data, temp_res.data, MIN(size, num_size));
 		
 		__chonky_add(low, high, low);
 		
-		if (chonky_is_gt(low, base)) {
+		if (chonky_is_gt(low, base) || (i == steps - 1)) {
 			__chonky_mod(&low, low, base);
 		}
 	}
