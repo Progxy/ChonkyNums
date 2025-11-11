@@ -270,7 +270,19 @@ void dealloc_chonky_nums(int len, ...) {
 	return;
 }
 
-bool chonky_is_gt(BigNum a, BigNum b) {
+static BigNum __chonky_rshift(BigNum num, u64 cnt) {
+	if (cnt > num.size) {
+		mem_set(num.data, 0, num.size);
+		return num;
+	}
+	
+	mem_cpy(num.data, num.data + cnt, num.size - cnt);
+	mem_set(num.data + cnt, 0, num.size - cnt);
+
+	return num;
+}
+
+static bool chonky_is_gt(BigNum a, BigNum b) {
 	if (a.data == NULL || b.data == NULL) {
 		WARNING_LOG("Parameters must be not null.");
 		return FALSE;
@@ -290,7 +302,7 @@ bool chonky_is_gt(BigNum a, BigNum b) {
 	return FALSE;
 }
 
-bool is_chonky_zero(BigNum num) {
+static bool is_chonky_zero(BigNum num) {
 	if (num.data == NULL) {
 		WARNING_LOG("Parameters must be not null.");
 		return FALSE;
@@ -374,6 +386,8 @@ static BigNum __chonky_div(BigNum quotient, BigNum* remainder, BigNum a, BigNum 
 	a_c.sign = 0;
 	b_c.sign = 0;
 
+	mem_set(quotient.data, 0, quotient.size);
+
 	const u64 low_limit  = (b.size / 8) - 1;
 
 	u64 i = chonky_real_size_64(a_c) - 1;
@@ -426,6 +440,41 @@ static BigNum* __chonky_mod(BigNum* res, BigNum num, BigNum base) {
 }
 
 static BigNum __chonky_mod_mersenne(BigNum res, BigNum num, BigNum base) {
+	if (chonky_is_gt(base, num)) {
+		mem_cpy(res.data, num.data, base.size);
+		return res;
+	} else if (base.size == num.size) {
+		BigNum temp_res = dup_chonky_num(num);
+		__chonky_mod(&temp_res, num, base);
+		mem_cpy(res.data, temp_res.data, res.size);
+		DEALLOC_CHONKY_NUMS(&temp_res);
+		return res;	
+	}
+	
+	const u64 size = chonky_real_size_64(base);
+	const u64 num_size = chonky_real_size_64(num);
+	const u64 steps = (num_size - (num_size % size)) / size + !!(num_size % size);
+
+	BigNum temp_res = dup_chonky_num(num);
+	BigNum low = alloc_chonky_num(NULL, size, 0);
+	BigNum high = alloc_chonky_num(NULL, size, 0);
+	mem_cpy(low.data, temp_res.data, size);
+	
+	for (u64 i = 0; i < steps; ++i) {
+		__chonky_rshift(temp_res, size * 8);
+		mem_cpy(high.data, temp_res.data, MIN(size, num_size - (i + 1) * size));
+		
+		__chonky_add(low, high, low);
+		
+		if (chonky_is_gt(low, base)) {
+			__chonky_mod(&low, low, base);
+		}
+	}
+	
+	mem_cpy(res.data, low.data, low.size);
+
+	DEALLOC_CHONKY_NUMS(&high, &low, &temp_res);
+
 	return res;
 }
 
