@@ -13,9 +13,7 @@ class Chonky:
 
 class BigNum(ctypes.Structure):
 	_fields_ = [
-		("AnonymousUnionA", AnonymousUnionA),
-		("data", ctypes.POINTER(ctypes.c_uint8)),
-		("data_64", ctypes.POINTER(ctypes.c_uint64)),
+		("AnonymousUnionA", AnonymousUnionA)
 	]
 	_anonymous_ = ("AnonymousUnionA",)
 
@@ -47,7 +45,7 @@ class BigNum(ctypes.Structure):
 class AnonymousUnionA(ctypes.Union):
 	_fields_ = [
 		("data", ctypes.POINTER(ctypes.c_uint8)),
-		("data_64", ctypes.POINTER(ctypes.c_uint64)),
+		("data_64", ctypes.POINTER(ctypes.c_uint64))
 	]
 
 class ChonkyNums(Chonky):

@@ -142,7 +142,7 @@ class Autogen:
             field_type = ctype_from_string(field_type, self.structs_types)
             union_buf += f"\t\t(\"{field_name}\", {field_type})"
             
-            if idx < len(lines):
+            if idx < len(lines) - 1:
                 union_buf += ",\n"
             else:
                 union_buf += "\n"
@@ -169,7 +169,9 @@ class Autogen:
                 if "}" in line:
                     lines.remove(line)
         
-        for idx, line in enumerate(lines):
+        idx = 0
+        while idx < len(lines):
+            line = lines[idx]
             field_name = line.split(" ")[-1].replace(";", "").strip()
             field_type = line.split(field_name)[0].strip()
             field_type = ctype_from_string(field_type, self.structs_types)
@@ -185,10 +187,11 @@ class Autogen:
             
             print(f"\t\t(\"{field_name}\", {field_type})", end="", file=self.f)
             
-            if idx < len(lines):
+            if idx < len(lines) - 1:
                 print(",", file=self.f)
             else:
                 print("\n", end="", file=self.f)
+            idx += 1
 
         print("\t]", file=self.f)
 
