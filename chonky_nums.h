@@ -1,7 +1,13 @@
 #ifndef _CHONKY_NUMS_H_
 #define _CHONKY_NUMS_H_
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <immintrin.h>
+
+#define EXPORT_FUNCTION extern
+#define EXPORT_ENUM
+#define EXPORT_STRUCTURE
 
 #ifndef NO_INLINE
 	#define NO_INLINE __attribute__((__noinline__))
@@ -101,6 +107,8 @@ STATIC_ASSERT(sizeof(s64) == 8, "s64 must be 8 bytes");
 
 #ifdef _CHONKY_NUMS_UTILS_IMPLEMENTATION_
 
+#include <stdarg.h>
+
 #define CHONKY_ASSERT(condition) chonky_assert(condition, #condition, __FILE__, __LINE__, __func__)
 UNUSED_FUNCTION static void chonky_assert(bool condition, const char* condition_str, const char* file, const int line, const char* func) {
 	if (condition) return;
@@ -163,7 +171,7 @@ UNUSED_FUNCTION static void mem_set_var(void* ptr, int value, size_t size, size_
 #endif // _CHONKY_NUMS_UTILS_IMPLEMENTATION_
 
 // TODO: Use the data_64 entry instead of the one u8 one when casting
-typedef struct BigNum {
+EXPORT_STRUCTURE typedef struct BigNum {
 	union {
 		u8* data;
 		u64* data_64;
@@ -186,7 +194,7 @@ static inline u64 align_64(u64 val) {
 	return val + (val % 8 ? (8 - (val % 8)) : 0);
 }
 
-BigNum alloc_chonky_num(const u8* data, const u64 size, bool sign) {
+EXPORT_FUNCTION BigNum alloc_chonky_num(const u8* data, const u64 size, bool sign) {
 	BigNum num = { .sign = sign, .size = align_64(size) };
 	
 	num.data = calloc(num.size, sizeof(u8));
@@ -271,6 +279,12 @@ void dealloc_chonky_nums(int len, ...) {
     
 	va_end(args);
 	
+	return;
+}
+
+EXPORT_FUNCTION void dealloc_chonky_num(BigNum* num) {
+	free(num -> data);
+	num -> data = NULL;
 	return;
 }
 
@@ -483,7 +497,7 @@ static BigNum __chonky_mod_mersenne(BigNum res, BigNum num, BigNum base) {
 }
 
 // TODO: Remove manual allocation, and instead use alloc_chonky_num
-BigNum chonky_add(BigNum a, BigNum b) {
+EXPORT_FUNCTION BigNum chonky_add(BigNum a, BigNum b) {
 	if (a.data == NULL || b.data == NULL) {
 		WARNING_LOG("Parameters must be not null.");
 		return (BigNum) {0};

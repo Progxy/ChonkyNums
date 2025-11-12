@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 
 #define _CHONKY_NUMS_PRINTING_UTILS_
 #define _CHONKY_NUMS_SPECIAL_TYPE_SUPPORT_
