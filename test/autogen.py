@@ -157,9 +157,11 @@ class Autogen:
 
         struct_name = lines[0].split("{")[0].split("struct")[-1].split(" ")[-2]
         self.structs_types.append(struct_name)
+        
+        struct_buf = ""
 
-        print(f"class {struct_name}(ctypes.Structure):", file=self.f)
-        print("\t_fields_ = [", file=self.f)
+        struct_buf += f"class {struct_name}(ctypes.Structure):\n"
+        struct_buf += "\t_fields_ = [\n"
         
         if len(lines) == 1:
             lines = lines[0].split("{")[-1].split("}")[0].split(",")
@@ -177,6 +179,7 @@ class Autogen:
             field_type = ctype_from_string(field_type, self.structs_types)
             if (field_type == "ctypes.Union"):
                 size, union_name, is_anon, union_buf = self.generate_union(lines[idx:])
+                print(f"TODO: idx: {idx}, size: {size}, len: {len(lines)}, lines: {lines}")
                 idx += size
                 
                 field_name = union_name
@@ -185,44 +188,45 @@ class Autogen:
 
                 if is_anon: anon_unions += f"\"{union_name}\","
             
-            print(f"\t\t(\"{field_name}\", {field_type})", end="", file=self.f)
+            struct_buf += f"\t\t(\"{field_name}\", {field_type})"
             
             if idx < len(lines) - 1:
-                print(",", file=self.f)
+                struct_buf += ",\n"
             else:
-                print("\n", end="", file=self.f)
+                struct_buf += "\n"
             idx += 1
 
-        print("\t]", file=self.f)
+        struct_buf += "\t]\n"
 
-        print(f"\t_anonymous_ = ({anon_unions})\n", file=self.f)
+        struct_buf += f"\t_anonymous_ = ({anon_unions})\n\n"
 
-        print("\tdef __init__(self, **kwargs):", file=self.f)
-        print("\t\tfor field_name, _ in self._fields_:", file=self.f)
-        print("\t\t\tsetattr(self, field_name, 0)", file=self.f)
-        print("\t\tfor key, value in kwargs.items():", file=self.f)
-        print("\t\t\tif key in [f[0] for f in self._fields_]:", file=self.f)
-        print("\t\t\t\tsetattr(self, key, value)", file=self.f)
-        print("\t\t\telse:", file=self.f)
-        print("\t\t\t\traise TypeError(f\"Unknown field: {key}\")", file=self.f)
-        print("\t\tpass\n", file=self.f)
+        struct_buf += "\tdef __init__(self, **kwargs):\n"
+        struct_buf += "\t\tfor field_name, _ in self._fields_:\n"
+        struct_buf += "\t\t\tsetattr(self, field_name, 0)\n"
+        struct_buf += "\t\tfor key, value in kwargs.items():\n"
+        struct_buf += "\t\t\tif key in [f[0] for f in self._fields_]:\n"
+        struct_buf += "\t\t\t\tsetattr(self, key, value)\n"
+        struct_buf += "\t\t\telse:\n"
+        struct_buf += "\t\t\t\traise TypeError(f\"Unknown field: {key}\")\n"
+        struct_buf += "\t\tpass\n\n"
 
-        print("\tdef __repr__(self):", file=self.f)
-        print("\t\tfields = \"\\n\".join(", file=self.f)
-        print("\t\t\tf\"\\t{name}: {getattr(self, name)!r}\" for name, _ in self._fields_", file=self.f)
-        print("\t\t)", file=self.f)
-        print("\t\treturn f\"{self.__class__.__name__}: {{\\n{fields}\\n}}\"\n", file=self.f)
+        struct_buf += "\tdef __repr__(self):\n"
+        struct_buf += "\t\tfields = \"\\n\".join(\n"
+        struct_buf += "\t\t\tf\"\\t{name}: {getattr(self, name)!r}\" for name, _ in self._fields_\n"
+        struct_buf += "\t\t)\n"
+        struct_buf += "\t\treturn f\"{self.__class__.__name__}: {{\\n{fields}\\n}}\"\n\n"
 
-        print("\tdef __sizeof__():", file=self.f)
-        print(f"\t\treturn ctypes.sizeof({struct_name})\n", file=self.f)
+        struct_buf += "\tdef __sizeof__():\n"
+        struct_buf += f"\t\treturn ctypes.sizeof({struct_name})\n\n"
 
-        print("\tdef to_bytes(self):", file=self.f)
-        print("\t\treturn bytes(ctypes.string_at(ctypes.addressof(self), ctypes.sizeof(self)))\n", file=self.f)
+        struct_buf += "\tdef to_bytes(self):\n"
+        struct_buf += "\t\treturn bytes(ctypes.string_at(ctypes.addressof(self), ctypes.sizeof(self)))\n\n"
 
-        print("\tdef hex_dump(self, sep=\" \"):", file=self.f)
-        print("\t\treturn sep.join(f\"{b:02X}\" for b in self.to_bytes())\n", file=self.f)
+        struct_buf += "\tdef hex_dump(self, sep=\" \"):\n"
+        struct_buf += "\t\treturn sep.join(f\"{b:02X}\" for b in self.to_bytes())\n\n"
 
         print(unions_buf, file=self.f)
+        print(struct_buf, file=self.f)
 
         return
     
