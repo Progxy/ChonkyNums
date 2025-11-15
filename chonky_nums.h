@@ -189,6 +189,7 @@ void print_chonky_num(char* name, BigNum num) {
 }
 
 static inline u64 align_64(u64 val) {
+	if (val == 0) return 8;
 	return val + (val % 8 ? (8 - (val % 8)) : 0);
 }
 
@@ -202,13 +203,15 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num(const u8* data, const u64 size, bool si
 	num -> sign = sign;
 	num -> size = align_64(size);
 
-	num -> data = calloc(num -> size, sizeof(u8));
+	num -> data = (u8*) calloc(num -> size, sizeof(u8));
 	if (num -> data == NULL) {
 		free(num);
 		WARNING_LOG("Failed to allocate data buffer.");
 		return NULL;
 	}
 	
+	DEBUG_LOG("allocated: %p", num -> data);
+
 	if (data != NULL) mem_cpy(num -> data, data, size);
 
 	return num;
@@ -216,13 +219,14 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num(const u8* data, const u64 size, bool si
 
 static BigNum* dup_chonky_num(BigNum* num) {
 	BigNum* duped = alloc_chonky_num(num -> data, num -> size, num -> sign);
+	DEBUG_LOG("duped: %p", duped -> data);
 	return duped;
 }
 
 static BigNum* copy_chonky_num(BigNum* num, BigNum* src) {
-	num -> data = realloc(num -> data, src -> size * sizeof(u8));
+	num -> data = (u8*) realloc(num -> data, src -> size * sizeof(u8));
 	if (num -> data == NULL) {
-		WARNING_LOG("Failed to allocate data buffer.");
+		WARNING_LOG("Failed to resize data buffer.");
 		return NULL;
 	}
 
@@ -252,9 +256,9 @@ static u64 chonky_real_size_64(BigNum* num) {
 static int chonky_resize(BigNum* num, u64 new_size) {
 	new_size = align_64(new_size);
 
-	num -> data = realloc(num -> data, new_size * sizeof(u8));
+	num -> data = (u8*) realloc(num -> data, new_size * sizeof(u8));
 	if (num -> data == NULL) {
-		WARNING_LOG("Failed to allocate data buffer.");
+		WARNING_LOG("Failed to resize data buffer, from %llu to %llu.", num -> size, new_size);
 		return -1;
 	}
 
@@ -270,8 +274,10 @@ void dealloc_chonky_nums(int len, ...) {
 
 	for (int i = 0; i < len; ++i) {
 		BigNum* num = va_arg(args, BigNum*);
+		DEBUG_LOG("free data: %p", num -> data);
 		free(num -> data);
 		num -> data = NULL;
+		DEBUG_LOG("free: %p", num);
 		free(num);
     }
     
@@ -307,11 +313,11 @@ static bool chonky_is_gt(BigNum* a, BigNum* b) {
 
 	u64 a_size = chonky_real_size(a);
 	u64 b_size = chonky_real_size(b);
-
+	
 	if (a_size > b_size) return TRUE;
 	else if (a_size < b_size) return FALSE;
 
-	for (s64 i = (a_size / 8) - 1; i >= 0; --i) {
+	for (s64 i = (align_64(a_size) / 8) - 1; i >= 0; --i) {
 		if ((a -> data_64)[i] > (b -> data_64)[i]) return TRUE;
 		else if ((b -> data_64)[i] > (a -> data_64)[i]) return FALSE;
 	}
@@ -360,7 +366,8 @@ static BigNum* __chonky_sub(BigNum* res, BigNum* a, BigNum* b) {
 	if (res -> sign) {
 		for (u64 i = 0; i < size_64; ++i) {
 			u64* acc = (u64*) (res -> data + i * 8);
-			*acc = ~*acc + 1;	
+			*acc = ~*acc;
+		   	if (i == 0) (*acc)++;
 		}
 	}
 
@@ -368,9 +375,13 @@ static BigNum* __chonky_sub(BigNum* res, BigNum* a, BigNum* b) {
 }
 
 static BigNum* __chonky_mul_s(BigNum* res, BigNum* a, BigNum* b) {
-	for (u64 i = 0; i < a -> size / 8; ++i) {
-		for (u64 j = 0; j < b -> size / 8; ++j) {
-			*((u128*) res -> data + (i + j) * 8) += (u128) ((u64*) a -> data)[i] * ((u64*) b -> data)[j];
+	u64 a_size = align_64(chonky_real_size(a));
+	u64 b_size = align_64(chonky_real_size(b));
+	DEBUG_LOG("a_size: %llu, b_size: %llu, res: %llu", a_size, b_size, res -> size);
+	CHONKY_ASSERT(res -> size > (a_size + b_size));
+	for (u64 i = 0; i < (a_size / 4); ++i) {
+		for (u64 j = 0; j < (b_size / 4); ++j) {
+			*((u128*) (res -> data + (i + j) * 4)) += (u64) ((u32*) a -> data)[i] * ((u32*) b -> data)[j];
 		}
 	}
 	return res;
@@ -382,7 +393,7 @@ static void __chonky_divstep(u64 size_diff, BigNum* a, BigNum* b, u64 c) {
 	u64 i = 0;
 	u64 carry = 0;
 	for (i = 0; i < size_64; ++i) {
-		u128 val = (u128) b -> data_64[i] * c;
+		u128 val = (u128) (b -> data_64)[i] * c;
 		carry = _subborrow_u64(carry, (a -> data_64)[i + size_diff], (u64) val, a -> data_64 + i + size_diff);
 		carry += (u64) (val >> 64);
 	}
@@ -395,6 +406,7 @@ static void __chonky_divstep(u64 size_diff, BigNum* a, BigNum* b, u64 c) {
 }
 
 static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder, BigNum* a, BigNum* b) {
+	// NOTE: We do not support floating point division for now
 	CHONKY_ASSERT(a -> size >= b -> size);
 	
 	BigNum* a_c = dup_chonky_num(a);
@@ -441,7 +453,7 @@ static BigNum* __chonky_pow(BigNum* res, BigNum* num, BigNum* exp) {
 	}	
 
 	BigNum* base = alloc_chonky_num(NULL, res -> size, num -> sign);
-	if (temp_base == NULL) {
+	if (base == NULL) {
 		DEALLOC_CHONKY_NUMS(temp, temp_base);
 		return NULL;
 	}	
@@ -449,19 +461,22 @@ static BigNum* __chonky_pow(BigNum* res, BigNum* num, BigNum* exp) {
 	(res -> data)[0] = 1;
 	mem_cpy(base -> data, num -> data, num -> size);
 	
+	DEBUG_LOG("Going for the loop");
 	for (u64 i = 0; i < chonky_real_size(exp); ++i) {
 		for (u8 j = 0; j < bit_size(exp -> data[i]); ++j) {
-			if (GET_BIT(exp -> data[i], j) == 1) {
-				temp = __chonky_mul_s(temp, res, base);
+			if (GET_BIT((exp -> data)[i], j) == 1) {
+				__chonky_mul_s(temp, res, base);
 				mem_cpy(res -> data, temp -> data, res -> size);
 			}
 
-			temp_base = __chonky_mul_s(temp_base, base, base);
+			__chonky_mul_s(temp_base, base, base);
 			mem_cpy(base -> data, temp_base -> data, base -> size);
 		}
 	}
 	
+	DEBUG_LOG("Out the loop: %p, %p, %p", base -> data, temp -> data, temp_base -> data);
 	DEALLOC_CHONKY_NUMS(base, temp, temp_base);
+	DEBUG_LOG("Clean garbage");
 
 	return res;
 }
@@ -548,7 +563,7 @@ EXPORT_FUNCTION BigNum* chonky_add(const BigNum* a, const BigNum* b) {
 	return res;
 }
 
-BigNum* chonky_sub(const BigNum* a, const BigNum* b) {
+EXPORT_FUNCTION BigNum* chonky_sub(const BigNum* a, const BigNum* b) {
 	BigNum* minuend = dup_chonky_num(b);
 	if (minuend == NULL) return NULL;
 	minuend -> sign = !(b -> sign);
@@ -557,23 +572,22 @@ BigNum* chonky_sub(const BigNum* a, const BigNum* b) {
 	return res;
 }
 
-BigNum* chonky_mul(const BigNum* a, const BigNum* b) {
+EXPORT_FUNCTION BigNum* chonky_mul(const BigNum* a, const BigNum* b) {
 	if (a == NULL || b == NULL) {
 		WARNING_LOG("Parameters must be not null.");
 		return NULL;
 	}
 
-	BigNum* res = alloc_chonky_num(NULL, align_64(a -> size + b -> size), 0);
+	BigNum* res = alloc_chonky_num(NULL, align_64(a -> size + b -> size) + 8, 0);
 	if (res == NULL) return NULL;
-
-	res -> sign = a -> sign | b -> sign;
 	
+	res -> sign = a -> sign | b -> sign;
 	res = __chonky_mul_s(res, a, b);
 
 	return res;
 }
 
-BigNum* chonky_div(const BigNum* a, const BigNum* b) {
+EXPORT_FUNCTION BigNum* chonky_div(const BigNum* a, const BigNum* b) {
 	if (a == NULL || b == NULL) {
 		WARNING_LOG("Parameters must be not null.");
 		return NULL;
@@ -591,13 +605,15 @@ BigNum* chonky_div(const BigNum* a, const BigNum* b) {
 	return res;
 }
 
-BigNum* chonky_pow(const BigNum* num, const BigNum* exp) {
+EXPORT_FUNCTION BigNum* chonky_pow(const BigNum* num, const BigNum* exp) {
 	if (num == NULL || exp == NULL) {
 		WARNING_LOG("Parameters must be not null.");
 		return NULL;
 	}
 
-	const u64 size = chonky_real_size(num) * chonky_real_size(exp);
+	// TODO: Should perform the right operation before testing, using BigNums
+	const u64 size = chonky_real_size(num) * *(exp -> data_64);
+	DEBUG_LOG("size: %llu, %llu bytes", size, size / 8);
 	BigNum* res = alloc_chonky_num(NULL, align_64(size), 0);
 	if (res == NULL) return NULL;
 

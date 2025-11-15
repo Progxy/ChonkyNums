@@ -74,3 +74,27 @@ class ChonkyNums(Chonky_nums):
 		chonky_add.restype = ctypes.POINTER(BigNum)
 		return chonky_add(a, b)
 
+	def chonky_sub(self, a, b):
+		chonky_sub = self.chonky_nums.chonky_sub
+		chonky_sub.argtypes = [ ctypes.POINTER(BigNum), ctypes.POINTER(BigNum) ]
+		chonky_sub.restype = ctypes.POINTER(BigNum)
+		return chonky_sub(a, b)
+
+	def chonky_mul(self, a, b):
+		chonky_mul = self.chonky_nums.chonky_mul
+		chonky_mul.argtypes = [ ctypes.POINTER(BigNum), ctypes.POINTER(BigNum) ]
+		chonky_mul.restype = ctypes.POINTER(BigNum)
+		return chonky_mul(a, b)
+
+	def chonky_div(self, a, b):
+		chonky_div = self.chonky_nums.chonky_div
+		chonky_div.argtypes = [ ctypes.POINTER(BigNum), ctypes.POINTER(BigNum) ]
+		chonky_div.restype = ctypes.POINTER(BigNum)
+		return chonky_div(a, b)
+
+	def chonky_pow(self, num, exp):
+		chonky_pow = self.chonky_nums.chonky_pow
+		chonky_pow.argtypes = [ ctypes.POINTER(BigNum), ctypes.POINTER(BigNum) ]
+		chonky_pow.restype = ctypes.POINTER(BigNum)
+		return chonky_pow(num, exp)
+

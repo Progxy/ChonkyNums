@@ -6,8 +6,6 @@
 #define _CHONKY_NUMS_UTILS_IMPLEMENTATION_
 #include "../chonky_nums.h"
 
-// TODO: Implement Python based tests
-
 int main(void) {
 	u8 data_a[] = { 
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 
@@ -15,21 +13,21 @@ int main(void) {
 	};
 	
 	u8 data_b[] = { 
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 
+		0x00, 0x00, 0xF0, 0x10, 0x00, 0x00, 0x00, 0x00
 	};
 
-	BigNum a = alloc_chonky_num(data_a, ARR_SIZE(data_a), 0);
-	if (a.data == NULL) return 1;
+	BigNum* a = alloc_chonky_num(data_a, ARR_SIZE(data_a), 0);
+	if (a == NULL) return 1;
 	
-	BigNum b = alloc_chonky_num(data_b, ARR_SIZE(data_b), 1);
-	if (b.data == NULL) return 1;
+	BigNum* b = alloc_chonky_num(data_b, ARR_SIZE(data_b), 0);
+	if (b == NULL) return 1;
 	
-	BigNum c = chonky_div(a, b);
-	if (c.data == NULL) return 1;
+	BigNum* c = chonky_pow(a, b);
+	if (c == NULL) return 1;
 
-	PRINT_CHONKY_NUM(c);
+	PRINT_CHONKY_NUM(*c);
 
-	DEALLOC_CHONKY_NUMS(&a, &b, &c);
+	DEALLOC_CHONKY_NUMS(a, b, c);
 
 	return 0;
 }
