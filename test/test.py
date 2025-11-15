@@ -23,15 +23,12 @@ def test_add(chonky_nums):
         a_bytes = int_to_bytes(a)
         b_bytes = int_to_bytes(b)
 
-        print(a_bytes.hex().upper())
         big_a = chonky_nums.alloc_chonky_num(ctypes.cast(a_bytes, ctypes.POINTER(ctypes.c_uint8)), 64, 0)
         
-        print(f"\n{b_bytes.hex().upper()}")
         big_b = chonky_nums.alloc_chonky_num(ctypes.cast(b_bytes, ctypes.POINTER(ctypes.c_uint8)), 64, 0)
 
         res = chonky_nums.chonky_add(big_a, big_b)
         result = bytes_to_int(ctypes.string_at(res.contents.data, res.contents.size))
-        print(f"\n*res: {ctypes.string_at(res.contents.data, res.contents.size).hex().upper()}")
 
         assert result == expected, f"Mismatch:\nA={a:x}\nB={b:x}\nRes={result:x}\nExp={expected:x}"
     return

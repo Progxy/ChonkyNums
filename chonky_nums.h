@@ -210,13 +210,6 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num(const u8* data, const u64 size, bool si
 	}
 	
 	if (data != NULL) mem_cpy(num -> data, data, size);
-	
-#ifdef _DEBUG
-	if (data) {
-		DEBUG_LOG("Allocating with data(%p)", data);
-	   	PRINT_CHONKY_NUM(*num);
-	}
-#endif //_DEBUG
 
 	return num;
 }
@@ -552,8 +545,6 @@ EXPORT_FUNCTION BigNum* chonky_add(const BigNum* a, const BigNum* b) {
 		res = __chonky_sub(res, minuend, subtraend);
 	} else res = __chonky_add(res, a, b);
 	   	
-	if (res) PRINT_CHONKY_NUM(*res);
-
 	return res;
 }
 

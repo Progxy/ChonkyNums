@@ -112,6 +112,7 @@ class Autogen:
         function_prototype = [function_type, function_name, function_params]
         return function_prototype
 
+    # TODO: Add support for both nested union and structs
     def generate_union(self, lines):
         is_anon = False
         union_buf = ""
@@ -133,7 +134,7 @@ class Autogen:
             lines = lines[1:]
             for idx, line in enumerate(lines):
                 if "}" in line:
-                    lines[:idx - 1]
+                    lines = lines[:idx]
                     break
         
         for idx, line in enumerate(lines):
@@ -151,6 +152,7 @@ class Autogen:
 
         return len(lines), union_name, is_anon, union_buf
 
+    # TODO: Add support for nested structs
     def generate_structure(self, lines):
         anon_unions = ""
         unions_buf = ""
@@ -167,19 +169,20 @@ class Autogen:
             lines = lines[0].split("{")[-1].split("}")[0].split(",")
         else:
             lines = lines[1:]
-            for line in lines:
-                if "}" in line:
-                    lines.remove(line)
         
         idx = 0
         while idx < len(lines):
             line = lines[idx]
+            
+            if "}" in line: 
+                idx += 1
+                continue
+
             field_name = line.split(" ")[-1].replace(";", "").strip()
             field_type = line.split(field_name)[0].strip()
             field_type = ctype_from_string(field_type, self.structs_types)
             if (field_type == "ctypes.Union"):
                 size, union_name, is_anon, union_buf = self.generate_union(lines[idx:])
-                print(f"TODO: idx: {idx}, size: {size}, len: {len(lines)}, lines: {lines}")
                 idx += size
                 
                 field_name = union_name
@@ -327,10 +330,13 @@ class Autogen:
                 function_prototypes.append(self.parse_function(line))
             elif line.startswith("EXPORT_STRUCTURE"):
                 struct_lines = []
+                open_cnt = 0
+                close_cnt = 0
                 while i < len(lines):
                     struct_lines.append(lines[i])
-                    if "}" in lines[i]:
-                        break
+                    open_cnt += lines[i].count("{")
+                    close_cnt += lines[i].count("}")
+                    if (open_cnt == close_cnt): break
                     i += 1
                 self.generate_structure(struct_lines)
             elif line.startswith("EXPORT_ENUM"):
