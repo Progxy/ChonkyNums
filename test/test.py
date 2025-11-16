@@ -77,7 +77,6 @@ def test_sub(chonky_nums):
         chonky_nums.dealloc_chonky_num(res)
 
         assert result == expected, f"Mismatch:\nA={a:x}\nB={b:x}\nRes={result:x}\nExp={expected:x}"
-        assert i != 0, "check todo"
     return
 
 def test_mul(chonky_nums):   
@@ -111,7 +110,7 @@ def test_mul(chonky_nums):
     return
 
 def test_div(chonky_nums):   
-    for _ in range(10000):
+    for i in range(10000):
         a = random.getrandbits(512)
         b = random.getrandbits(512)
         expected = a // b
@@ -143,19 +142,13 @@ def test_div(chonky_nums):
     return
 
 def test_pow(chonky_nums):   
-    for _ in range(10000):
+    for i in range(1000):
+        print(f"Testing {i + 1} out of 1000", end='\r')
+
         a = random.getrandbits(512)
-        #b = random.getrandbits(8)
-        b = 3
+        b = random.getrandbits(8)
         expected = a ** b
         
-        n1 = a
-        print(f"n1 = {n1:X}")
-        n2 = a * a
-        print(f"n2 = {n2:X}")
-        n3 = n1 * n2
-        print(f"n3 = {n3:X}")
-
         a_bytes = int_to_bytes(a)
         b_bytes = int_to_bytes(b, 2)
 
@@ -178,15 +171,14 @@ def test_pow(chonky_nums):
         chonky_nums.dealloc_chonky_num(res)
 
         assert result == expected, f"Mismatch:\nA = {a:x}\nB = {b:x}\nRes = {result:x}\nExp = {expected:x}"
-        assert i != 0
     return
 
 def test_mod(chonky_nums):   
-    for _ in range(10000):
+    for i in range(10000):
         a = random.getrandbits(512)
         b = random.getrandbits(512)
         expected = a % b
-
+        
         a_bytes = int_to_bytes(a)
         b_bytes = int_to_bytes(b)
 
@@ -212,10 +204,12 @@ def test_mod(chonky_nums):
     return
 
 def test_mod_mersenne(chonky_nums):   
-    for _ in range(10000):
+    for i in range(10000):
         a = random.getrandbits(512)
         b = 2 ** 255 - 19
         expected = a % b
+
+        print(f"Testing {i+1} out of 10000\nA = {a:x}\n")
 
         a_bytes = int_to_bytes(a)
         b_bytes = int_to_bytes(b)
@@ -244,17 +238,17 @@ def test_mod_mersenne(chonky_nums):
 if __name__ == "__main__":
     chonky_nums = ChonkyNums()
 
-    # print("Testing chonky_add...")
-    # test_add(chonky_nums)
+    print("Testing chonky_add...")
+    test_add(chonky_nums)
     
-    # print("Testing chonky_sub...")
-    # test_sub(chonky_nums)
+    print("Testing chonky_sub...")
+    test_sub(chonky_nums)
     
-    # print("Testing chonky_mul...")
-    # test_mul(chonky_nums)
+    print("Testing chonky_mul...")
+    test_mul(chonky_nums)
     
-    # print("Testing chonky_div...")
-    # test_div(chonky_nums)
+    print("Testing chonky_div...")
+    test_div(chonky_nums)
 
     print("Testing chonky_pow...")
     test_pow(chonky_nums)

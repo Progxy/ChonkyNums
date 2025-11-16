@@ -199,7 +199,7 @@ static BigNum* copy_chonky_num(BigNum* num, BigNum* src) {
 static u64 chonky_real_size(BigNum* num) {
 	u64 size = num -> size;
 	for (s64 i = num -> size - 1; i >= 0; --i) {
-		if (num -> data[i]) break;
+		if ((num -> data)[i]) break;
 		size--;
 	}
 	return size;
@@ -208,7 +208,7 @@ static u64 chonky_real_size(BigNum* num) {
 static u64 chonky_real_size_64(BigNum* num) {
 	u64 size = num -> size / 8;
 	for (s64 i = (num -> size / 8) - 1; i >= 0; --i) {
-		if (num -> data_64[i]) break;
+		if ((num -> data_64)[i]) break;
 		size--;
 	}
 	return size;
@@ -345,33 +345,35 @@ static BigNum* __chonky_sub(BigNum* res, BigNum* a, BigNum* b) {
 }
 
 static BigNum* __chonky_mul_s(BigNum* res, BigNum* a, BigNum* b) {
-	u64 a_size = chonky_real_size_64(a) * 8;
-	u64 b_size = chonky_real_size_64(b) * 8;
-	DEBUG_LOG("%llu, %llu, %llu", res -> size, a_size, b_size);
+	u64 a_size = align_64(chonky_real_size(a));
+	u64 b_size = align_64(chonky_real_size(b));
 	CHONKY_ASSERT(res -> size > (a_size + b_size));
 	for (u64 i = 0; i < (a_size / 4); ++i) {
 		for (u64 j = 0; j < (b_size / 4); ++j) {
 			*((u128*) (res -> data + (i + j) * 4)) += (u64) ((u32*) a -> data)[i] * ((u32*) b -> data)[j];
 		}
 	}
+
 	return res;
 }
 
 static void __chonky_divstep(u64 size_diff, BigNum* a, BigNum* b, u64 c) {
-	const u64 size_64 = b -> size / 8; 
-	
+	const u32 _c[2] = { c & 0xFFFFFFFF, (c >> 32) & 0xFFFFFFFF };
+
 	u64 i = 0;
 	u64 carry = 0;
-	for (i = 0; i < size_64; ++i) {
-		u128 val = (u128) (b -> data_64)[i] * c;
-		carry = _subborrow_u64(carry, (a -> data_64)[i + size_diff], (u64) val, a -> data_64 + i + size_diff);
-		carry += (u64) (val >> 64);
+	for (i = 0; i < b -> size / 4; ++i) {
+		for (u8 j = 0; j < 2; ++j) {
+			u64 val = (u64) ((u32*) b -> data)[i] * _c[j];
+			carry = _subborrow_u64(carry, *((u64*) (a -> data + (i + j) * 4 + size_diff * 8)), val, (u64*) (a -> data + (i  + j) * 4 + size_diff * 8));
+		}
 	}
 
 	CHONKY_ASSERT(!carry);
 	// TODO: This should probably not be necessary
-	// if (carry) _subborrow_u64(carry, (a -> data_64)[i + size_diff], 0, a -> data_64 + i + size_diff);
-	
+	/* DEBUG_LOG("carry: %llu", carry); */
+	/* if (carry) _subborrow_u64(carry, *((u64*) (a -> data + (i + 1) * 4 + size_diff * 8)), 0, (u64*) (a -> data + (i + 1) * 4 + size_diff * 8)); */
+
 	return;
 }
 
@@ -398,10 +400,12 @@ static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder, BigNum* a, BigN
 	u64 i = chonky_real_size_64(a_c) - 1;
 	while (!chonky_is_gt(b_c, a_c)) {
 		// Perform the division with the upper components
-		const u8 additional = (low_limit > 0) ? (b_c -> data_64[low_limit - 1] && (b_c -> data_64[low_limit - 1] >= a_c -> data_64[i - 1])) : 0;
-		u64 q_hat = a_c -> data_64[i] / (b_c -> data_64[low_limit] + additional);
+		const u8 additional = (low_limit > 0) ? ((b_c -> data_64)[low_limit - 1] && ((b_c -> data_64)[low_limit - 1] >= (a_c -> data_64)[i - 1])) : 0;
+		u64 q_hat = (a_c -> data_64)[i] / ((b_c -> data_64)[low_limit] + additional);
+		
 		__chonky_divstep(i - low_limit, a_c, b_c, q_hat);
-		quotient -> data_64[i - low_limit] += q_hat;
+		
+		(quotient -> data_64)[i - low_limit] += q_hat;
 		i = chonky_real_size_64(a_c) - 1;
 	}
 	
@@ -435,18 +439,16 @@ static BigNum* __chonky_pow(BigNum* res, BigNum* num, BigNum* exp) {
 		const u8 bit_s = bit_size((exp -> data)[i]);
 		for (u8 j = 0; j < bit_s; ++j) {
 			if (GET_BIT((exp -> data)[i], j) == 1) {
-				DEBUG_LOG("update");
+				mem_set(temp -> data, 0, temp -> size);
 				__chonky_mul_s(temp, res, base);
 				mem_cpy(res -> data, temp -> data, res -> size);
-				PRINT_CHONKY_NUM(*res);
 			}
 
 			if (j == bit_s - 1) break;
 
-			DEBUG_LOG("update base");
+			mem_set(temp_base -> data, 0, temp_base -> size);
 			__chonky_mul_s(temp_base, base, base);
 			mem_cpy(base -> data, temp_base -> data, base -> size);
-			PRINT_CHONKY_NUM(*base);
 		}
 	}
 	
