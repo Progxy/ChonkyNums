@@ -395,9 +395,9 @@ static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder, BigNum* a, BigN
 
 	mem_set(quotient -> data, 0, quotient -> size);
 
-	const u64 low_limit = (b -> size / 8) - 1;
-
+	const u64 low_limit = chonky_real_size_64(b_c) - 1;
 	u64 i = chonky_real_size_64(a_c) - 1;
+
 	while (!chonky_is_gt(b_c, a_c)) {
 		// Perform the division with the upper components
 		const u8 additional = (low_limit > 0) ? ((b_c -> data_64)[low_limit - 1] && ((b_c -> data_64)[low_limit - 1] >= (a_c -> data_64)[i - 1])) : 0;

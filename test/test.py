@@ -144,7 +144,6 @@ def test_div(chonky_nums):
 def test_pow(chonky_nums):   
     for i in range(1000):
         print(f"Testing {i + 1} out of 1000", end='\r')
-
         a = random.getrandbits(512)
         b = random.getrandbits(8)
         expected = a ** b
@@ -171,6 +170,9 @@ def test_pow(chonky_nums):
         chonky_nums.dealloc_chonky_num(res)
 
         assert result == expected, f"Mismatch:\nA = {a:x}\nB = {b:x}\nRes = {result:x}\nExp = {expected:x}"
+    
+    print("                                                         ", end='') 
+    
     return
 
 def test_mod(chonky_nums):   
