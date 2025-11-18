@@ -362,24 +362,24 @@ static void __chonky_divstep(u64 size_diff, BigNum* a, BigNum* b, u64 c) {
 
 	u64 i = 0;
 	u64 carry = 0;
-	for (i = 0; i < b -> size / 4; ++i) {
+	for (i = 0; i < align_64(chonky_real_size(b)) / 4; ++i) {
 		for (u8 j = 0; j < 2; ++j) {
 			u64 val = (u64) ((u32*) b -> data)[i] * _c[j];
-			carry = _subborrow_u64(carry, *((u64*) (a -> data + (i + j) * 4 + size_diff * 8)), val, (u64*) (a -> data + (i  + j) * 4 + size_diff * 8));
+			carry = _subborrow_u64(carry, *((u64*) (a -> data + (i + j) * 4 + size_diff)), val, (u64*) (a -> data + (i  + j) * 4 + size_diff));
 		}
 	}
 
 	CHONKY_ASSERT(!carry);
 	// TODO: This should probably not be necessary
 	/* DEBUG_LOG("carry: %llu", carry); */
-	/* if (carry) _subborrow_u64(carry, *((u64*) (a -> data + (i + 1) * 4 + size_diff * 8)), 0, (u64*) (a -> data + (i + 1) * 4 + size_diff * 8)); */
+	/* if (carry) _subborrow_u64(carry, *((u64*) (a -> data + (i + 1) * 4 + size_diff)), 0, (u64*) (a -> data + (i + 1) * 4 + size_diff)); */
 
 	return;
 }
 
 static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder, BigNum* a, BigNum* b) {
 	// NOTE: We do not support floating point division for now
-	CHONKY_ASSERT(a -> size >= b -> size);
+	if (chonky_real_size(a) < chonky_real_size(b)) return quotient;
 	
 	BigNum* a_c = dup_chonky_num(a);
 	if (a_c == NULL) return NULL;
@@ -395,18 +395,28 @@ static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder, BigNum* a, BigN
 
 	mem_set(quotient -> data, 0, quotient -> size);
 
-	const u64 low_limit = chonky_real_size_64(b_c) - 1;
-	u64 i = chonky_real_size_64(a_c) - 1;
+	const u64 low_limit = chonky_real_size(b_c) - 1;
+	u64 i = chonky_real_size(a_c) - 1;
 
 	while (!chonky_is_gt(b_c, a_c)) {
 		// Perform the division with the upper components
-		const u8 additional = (low_limit > 0) ? ((b_c -> data_64)[low_limit - 1] && ((b_c -> data_64)[low_limit - 1] >= (a_c -> data_64)[i - 1])) : 0;
-		u64 q_hat = (a_c -> data_64)[i] / ((b_c -> data_64)[low_limit] + additional);
+		const u8 additional = (low_limit >= 8) ? ((b_c -> data)[low_limit - 8]) && ((b_c -> data)[low_limit - 8] >= (a_c -> data)[i - 7]) : 0;
 		
+		u64 a_val = *((u64*) (a_c -> data + i - 7));
+		u64 b_val = *((u64*) (b_c -> data + low_limit - 7)) + additional;
+	
+		if (i > low_limit && a_val < b_val) {
+			b_val = (b_val >> 8) + 1;
+			i--;
+		}
+		
+		u64 q_hat = a_val / b_val;
+		CHONKY_ASSERT(q_hat != 0);
+
 		__chonky_divstep(i - low_limit, a_c, b_c, q_hat);
 		
-		(quotient -> data_64)[i - low_limit] += q_hat;
-		i = chonky_real_size_64(a_c) - 1;
+		*((u64*) (quotient -> data + i - low_limit)) += q_hat;
+		i = chonky_real_size(a_c) - 1;
 	}
 	
 	if (remainder != NULL) copy_chonky_num(remainder, a_c);
@@ -458,10 +468,18 @@ static BigNum* __chonky_pow(BigNum* res, BigNum* num, BigNum* exp) {
 }
 
 static BigNum* __chonky_mod(BigNum* res, BigNum* num, BigNum* base) {
+	if (chonky_is_gt(base, num)) {
+		mem_cpy(res -> data, num -> data, num -> size);
+		return res;
+	} 
+
 	BigNum* quotient = alloc_chonky_num(NULL, align_64(MAX(num -> size, base -> size)), 0);
 	if (quotient == NULL) return NULL;
+	
 	__chonky_div(quotient, res, num, base);
+	
 	DEALLOC_CHONKY_NUMS(quotient);
+	
 	return res;
 }
 
