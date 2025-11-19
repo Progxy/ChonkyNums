@@ -599,9 +599,6 @@ static void __chonky_divstep(u64 size_diff, BigNum* a, const BigNum* b, u64 c) {
 	}
 
 	CHONKY_ASSERT(!carry);
-	// TODO: This should probably not be necessary
-	/* DEBUG_LOG("carry: %llu", carry); */
-	/* if (carry) _subborrow_u64(carry, *((u64*) (a -> data + (i + 1) * 4 + size_diff)), 0, (u64*) (a -> data + (i + 1) * 4 + size_diff)); */
 
 	return;
 }
@@ -717,11 +714,7 @@ static BigNum* __chonky_mod_mersenne(BigNum* res, const BigNum* num, const BigNu
 		mem_cpy(res -> data, num -> data, base -> size);
 		return res;
 	} else if (base -> size == num -> size) {
-		BigNum* temp_res = dup_chonky_num(num);
-		if (temp_res == NULL) return NULL;
-		__chonky_mod(temp_res, num, base);
-		mem_cpy(res -> data, temp_res -> data, res -> size);
-		dealloc_chonky_num(temp_res);
+		__chonky_mod(res, num, base);
 		return res;	
 	}
 	
@@ -763,6 +756,101 @@ static BigNum* __chonky_mod_mersenne(BigNum* res, const BigNum* num, const BigNu
 
 	return res;
 }
+
+// TODO: Error Handling missing in this function
+// TODO: There is probably also some method to reduce the exponent
+static BigNum* __chonky_pow_mod(BigNum* res, const BigNum* num, const BigNum* exp, const BigNum* mod_base) {
+	if (chonky_is_gt(num, mod_base)) __chonky_mod(num, num, mod_base);
+ 
+ 	BigNum* temp = alloc_chonky_num(NULL, res -> size * 2 + 8, res -> sign);
+	if (temp == NULL) return NULL;
+
+	BigNum* temp_base = alloc_chonky_num(NULL, res -> size * 2 + 8, num -> sign);
+	if (temp_base == NULL) {
+		dealloc_chonky_num(temp);
+		return NULL;
+	}	
+
+	BigNum* base = alloc_chonky_num(NULL, res -> size, num -> sign);
+	if (base == NULL) {
+		DEALLOC_CHONKY_NUMS(temp, temp_base);
+		return NULL;
+	}	
+	
+	*(res -> data) = 1;
+	mem_cpy(base -> data, num -> data, num -> size);
+
+	for (u64 i = 0; i < chonky_real_size(exp); ++i) {
+		const u8 bit_s = bit_size((exp -> data)[i]);
+		for (u8 j = 0; j < bit_s; ++j) {
+			if (GET_BIT((exp -> data)[i], j) == 1) {
+				mem_set(temp -> data, 0, temp -> size);
+				__chonky_mul_s(temp, res, base);
+				if (chonky_is_gt(temp, mod_base)) __chonky_mod(temp, temp, mod_base);
+				mem_cpy(res -> data, temp -> data, res -> size);
+			}
+
+			if (j == bit_s - 1) break;
+
+			mem_set(temp_base -> data, 0, temp_base -> size);
+			__chonky_mul_s(temp_base, base, base);
+			if (chonky_is_gt(temp_base, mod_base)) __chonky_mod(temp_base, temp_base, mod_base);
+			mem_cpy(base -> data, temp_base -> data, base -> size);
+		}
+	}
+	
+	DEALLOC_CHONKY_NUMS(base, temp, temp_base);
+
+	return res;
+}
+
+// TODO: Error Handling missing in this function
+// TODO: There is probably also some method to reduce the exponent
+static BigNum* __chonky_pow_mod_mersenne(BigNum* res, const BigNum* num, const BigNum* exp, const BigNum* mod_base) {
+	if (chonky_is_gt(num, mod_base)) __chonky_mod_mersenne(num, num, mod_base);
+ 
+ 	BigNum* temp = alloc_chonky_num(NULL, res -> size * 2 + 8, res -> sign);
+	if (temp == NULL) return NULL;
+
+	BigNum* temp_base = alloc_chonky_num(NULL, res -> size * 2 + 8, num -> sign);
+	if (temp_base == NULL) {
+		dealloc_chonky_num(temp);
+		return NULL;
+	}	
+
+	BigNum* base = alloc_chonky_num(NULL, res -> size, num -> sign);
+	if (base == NULL) {
+		DEALLOC_CHONKY_NUMS(temp, temp_base);
+		return NULL;
+	}	
+	
+	*(res -> data) = 1;
+	mem_cpy(base -> data, num -> data, num -> size);
+
+	for (u64 i = 0; i < chonky_real_size(exp); ++i) {
+		const u8 bit_s = bit_size((exp -> data)[i]);
+		for (u8 j = 0; j < bit_s; ++j) {
+			if (GET_BIT((exp -> data)[i], j) == 1) {
+				mem_set(temp -> data, 0, temp -> size);
+				__chonky_mul_s(temp, res, base);
+				if (chonky_is_gt(temp, mod_base)) __chonky_mod_mersenne(temp, temp, mod_base);
+				mem_cpy(res -> data, temp -> data, res -> size);
+			}
+
+			if (j == bit_s - 1) break;
+
+			mem_set(temp_base -> data, 0, temp_base -> size);
+			__chonky_mul_s(temp_base, base, base);
+			if (chonky_is_gt(temp_base, mod_base)) __chonky_mod_mersenne(temp_base, temp_base, mod_base);
+			mem_cpy(base -> data, temp_base -> data, base -> size);
+		}
+	}
+	
+	DEALLOC_CHONKY_NUMS(base, temp, temp_base);
+
+	return res;
+}
+
 
 EXPORT_FUNCTION BigNum* chonky_add(const BigNum* a, const BigNum* b) {
 	if (a == NULL || b == NULL) {
@@ -823,7 +911,7 @@ EXPORT_FUNCTION BigNum* chonky_div(const BigNum* a, const BigNum* b) {
 	
 	res = __chonky_div(res, NULL, a, b);
 	
-	if (chonky_resize(res, chonky_real_size(res))) return NULL;
+	if (chonky_resize(res, 0)) return NULL;
 
 	return res;
 }
@@ -850,7 +938,7 @@ EXPORT_FUNCTION BigNum* chonky_pow(const BigNum* num, const BigNum* exp) {
 	res -> sign = num -> sign * ((exp -> data)[0] & 0x01);
 	res = __chonky_pow(res, num, exp);
 	
-	if (chonky_resize(res, chonky_real_size(res))) return NULL;
+	if (chonky_resize(res, 0)) return NULL;
 
 	return res;
 }
@@ -867,7 +955,7 @@ EXPORT_FUNCTION BigNum* chonky_mod(const BigNum* num, const BigNum* mod) {
 
 	__chonky_mod(res, num, mod);
 	
-	if (chonky_resize(res, chonky_real_size(res))) return NULL;
+	if (chonky_resize(res, 0)) return NULL;
 
 	return res;
 }
@@ -889,7 +977,46 @@ EXPORT_FUNCTION BigNum* chonky_mod_mersenne(const BigNum* num, const BigNum* mod
 
 	res = __chonky_mod_mersenne(res, num, mod);
 	
-	if (chonky_resize(res, chonky_real_size(res))) return NULL;
+	if (chonky_resize(res, 0)) return NULL;
+
+	return res;
+}
+
+EXPORT_FUNCTION BigNum* chonky_pow_mod(const BigNum* num, const BigNum* exp, const BigNum* mod) {
+	if (num == NULL || exp == NULL || mod == NULL) {
+		WARNING_LOG("Parameters must be not null.");
+		return NULL;
+	}
+
+	const u64 size = chonky_real_size(mod);
+	BigNum* res = alloc_chonky_num(NULL, align_64(size), 0);
+	if (res == NULL) return NULL;
+
+	__chonky_pow_mod(res, num, exp, mod);
+	
+	if (chonky_resize(res, 0)) return NULL;
+
+	return res;
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * NOTE:                                                   * 
+ * We do not check if the mod given is a Mersenne prime,   *
+ * as that's the job of the caller                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+EXPORT_FUNCTION BigNum* chonky_pow_mod_mersenne(const BigNum* num, const BigNum* exp, const BigNum* mod) {
+	if (num == NULL || mod == NULL) {
+		WARNING_LOG("Parameters must be not null.");
+		return NULL;
+	}
+
+	const u64 size = chonky_real_size(mod);
+	BigNum* res = alloc_chonky_num(NULL, align_64(size), 0);
+	if (res == NULL) return NULL;
+
+	res = __chonky_pow_mod_mersenne(res, num, exp, mod);
+	
+	if (chonky_resize(res, 0)) return NULL;
 
 	return res;
 }

@@ -128,3 +128,15 @@ class ChonkyNums(Chonky_nums):
 		chonky_mod_mersenne.restype = ctypes.POINTER(BigNum)
 		return chonky_mod_mersenne(num, mod)
 
+	def chonky_pow_mod(self, num, exp, mod):
+		chonky_pow_mod = self.chonky_nums.chonky_pow_mod
+		chonky_pow_mod.argtypes = [ ctypes.POINTER(BigNum), ctypes.POINTER(BigNum), ctypes.POINTER(BigNum) ]
+		chonky_pow_mod.restype = ctypes.POINTER(BigNum)
+		return chonky_pow_mod(num, exp, mod)
+
+	def chonky_pow_mod_mersenne(self, num, exp, mod):
+		chonky_pow_mod_mersenne = self.chonky_nums.chonky_pow_mod_mersenne
+		chonky_pow_mod_mersenne.argtypes = [ ctypes.POINTER(BigNum), ctypes.POINTER(BigNum), ctypes.POINTER(BigNum) ]
+		chonky_pow_mod_mersenne.restype = ctypes.POINTER(BigNum)
+		return chonky_pow_mod_mersenne(num, exp, mod)
+
