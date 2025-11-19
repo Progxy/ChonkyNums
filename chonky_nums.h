@@ -294,7 +294,7 @@ EXPORT_FUNCTION void dealloc_chonky_num(BigNum* num) {
 
 
 static int chonky_shift_dec(BigNum* num, u64* temp) {
-	const u64 num_size = MIN(num -> size / 8 - 1, align_64(chonky_real_size(num)) / 8 + 1);
+	const u64 num_size = MIN(num -> size / 8, align_64(chonky_real_size(num)) / 8 + 1);
 
 	mem_cpy(temp, num -> data, num -> size);
 	mem_set(num -> data, 0, num -> size);
@@ -348,9 +348,8 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num_from_string(const char* data_str) {
 		return NULL;
 	}
 	
-	for (u64 i = 0; i < data_str_len; ++i) {
-		if (data_str[i] == '-' && i == 0) continue;
-		else if (!IS_A_DEC_DIGIT(data_str[i])) {
+	for (u64 i = (*data_str == '-'); i < data_str_len; ++i) {
+		if (!IS_A_DEC_DIGIT(data_str[i])) {
 			SAFE_FREE(temp);
 			dealloc_chonky_num(num);
 			WARNING_LOG("'%c': is not a valid digit.", data_str[i]);
@@ -364,6 +363,65 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num_from_string(const char* data_str) {
 	SAFE_FREE(temp);
 
 	if (chonky_resize(num, 0)) return NULL;
+
+	return num;
+}
+
+static inline u8 char_to_hex(char c) {
+	u8 val = 0;
+	
+	if      (c >= '0' && c <= '9') val = c - '0';
+	else if (c >= 'a' && c <= 'f') val = c - 'a' + 10;
+	else                           val = c - 'A' + 10;
+	
+	return val;
+}
+
+#define IS_A_HEX_DIGIT(c) ((((c) >= '0') && ((c) <= '9')) || (((c) >= 'a') && ((c) <= 'f')) || (((c) >= 'A') && ((c) <= 'F')))
+EXPORT_FUNCTION BigNum* alloc_chonky_num_from_hex_string(const char* data_str) {
+	const u64 data_str_len = str_len(data_str);
+	if (data_str == NULL || data_str_len == 0) {
+		WARNING_LOG("Invalid parameters.");
+		return NULL;
+	}
+	
+	BigNum* num = calloc(1, sizeof(BigNum));
+	if (num == NULL) {
+		WARNING_LOG("Failed to allocate BigNum.");
+		return NULL;
+	}
+
+	char* hex_str = (char*) data_str + (*data_str == '-');
+	u64 hex_str_len = str_len(hex_str);
+	
+	if (hex_str_len > 2 && *hex_str == '0' && hex_str[1] == 'x') hex_str += 2;
+	hex_str_len = str_len(hex_str);
+	
+	num -> sign = (data_str[0] == '-');
+	num -> size = align_64((hex_str_len - (hex_str_len % 2)) / 2 + (hex_str_len % 2));
+
+	num -> data = (u8*) calloc(num -> size, sizeof(u8));
+	if (num -> data == NULL) {
+		free(num);
+		WARNING_LOG("Failed to allocate data buffer.");
+		return NULL;
+	}
+
+	for (s64 i = hex_str_len - 1, j = 0; i >= 0; i -= 2, ++j) {
+		if (!IS_A_HEX_DIGIT(hex_str[i])) {
+			dealloc_chonky_num(num);
+			WARNING_LOG("'%c': is not a valid digit.", hex_str[i]);
+			return NULL;
+		} else if ((i - 1 >= 0) && !IS_A_HEX_DIGIT(hex_str[i - 1])) {
+			dealloc_chonky_num(num);
+			WARNING_LOG("'%c': is not a valid digit.", hex_str[i - 1]);
+			return NULL;
+		}
+
+		u8 low = char_to_hex(hex_str[i]);
+		u8 high = (i - 1 >= 0) ? char_to_hex(hex_str[i - 1]) : 0;
+		(num -> data)[j] = low | (high << 4);
+	}
 
 	return num;
 }
@@ -474,11 +532,10 @@ EXPORT_FUNCTION void print_chonky_num(char* name, BigNum* num, bool use_hex) {
 /// -------------------------------
 ///  Internal Operations Functions
 /// -------------------------------
-// TODO: Maybe should use real_size instead of -> size??
 static BigNum* __chonky_add(BigNum* res, const BigNum* a, const BigNum* b) {
-	const u64 size = res -> size / 8; 
-	const u64 a_size = a -> size / 8;
-	const u64 b_size = b -> size / 8;
+	const u64 a_size = chonky_real_size_64(a);
+	const u64 b_size = chonky_real_size_64(b);
+	const u64 size = MIN(res -> size / 8, MAX(a_size, b_size) + 1); 
 
 	u64 carry = 0;
 	for (u64 i = 0; i < size; ++i) {
@@ -491,11 +548,10 @@ static BigNum* __chonky_add(BigNum* res, const BigNum* a, const BigNum* b) {
 	return res;
 }
 
-// TODO: Maybe should use real_size instead of -> size??
 static BigNum* __chonky_sub(BigNum* res, const BigNum* a, const BigNum* b) {
-	const u64 size = res -> size / 8; 
-	const u64 a_size = a -> size / 8;
-	const u64 b_size = b -> size / 8;
+	const u64 a_size = chonky_real_size_64(a);
+	const u64 b_size = chonky_real_size_64(b);
+	const u64 size = MIN(res -> size / 8, MAX(a_size, b_size) + 1); 
 	
 	u64 carry = 0;
 	for (u64 i = 0; i < size; ++i) {
