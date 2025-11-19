@@ -68,6 +68,18 @@ class ChonkyNums(Chonky_nums):
 		dealloc_chonky_num.restype = None
 		return dealloc_chonky_num(num)
 
+	def alloc_chonky_num_from_string(self, data_str):
+		alloc_chonky_num_from_string = self.chonky_nums.alloc_chonky_num_from_string
+		alloc_chonky_num_from_string.argtypes = [ ctypes.c_char_p ]
+		alloc_chonky_num_from_string.restype = ctypes.POINTER(BigNum)
+		return alloc_chonky_num_from_string(data_str)
+
+	def print_chonky_num(self, name, num, use_hex):
+		print_chonky_num = self.chonky_nums.print_chonky_num
+		print_chonky_num.argtypes = [ ctypes.c_char_p, ctypes.POINTER(BigNum), ctypes.c_bool ]
+		print_chonky_num.restype = None
+		return print_chonky_num(name, num, use_hex)
+
 	def chonky_add(self, a, b):
 		chonky_add = self.chonky_nums.chonky_add
 		chonky_add.argtypes = [ ctypes.POINTER(BigNum), ctypes.POINTER(BigNum) ]

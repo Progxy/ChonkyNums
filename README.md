@@ -45,7 +45,7 @@ A minimal illustration:
 int main(void) {
     BigNum* a = alloc_chonky_num_from_string("12345678901234567890");
     BigNum* b = alloc_chonky_num_from_string("98765432109876543210");
-    BigNum* result = chonky_add(a, b);
+	BigNum* result = chonky_add(a, b);
     PRINT_CHONKY_NUM_DEC(result); // Should output: 111111111011111111100
     DEALLOC_CHONKY_NUMS(a, b, result);
     return 0;

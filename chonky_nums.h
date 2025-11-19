@@ -97,9 +97,6 @@ STATIC_ASSERT(sizeof(s64) == 8, "s64 must be 8 bytes");
 
 	#define COLOR_STR(str, COLOR) COLOR str RESET_COLOR
 
-	/* #include "./str_error.h" */
-	/* #define PERROR_LOG(format, ...) printf(COLOR_STR("WARNING:" __FILE__ ":%u: ", WARNING_COLOR) format ", because: " COLOR_STR("'%s'", BRIGHT_YELLOW) ".\n", __LINE__, ##__VA_ARGS__, str_error()) */
-	
 	#define ERROR_LOG(format, error_str, ...) printf(COLOR_STR("ERROR:%s:" __FILE__ ":%u: ", ERROR_COLOR) format "\n", error_str, __LINE__, ##__VA_ARGS__)
 	#define WARNING_LOG(format, ...)          printf(COLOR_STR("WARNING:" __FILE__ ":%u: ", WARNING_COLOR) format "\n", __LINE__, ##__VA_ARGS__)
 	#define INFO_LOG(format, ...)             printf(COLOR_STR("INFO:" __FILE__ ":%u: ", INFO_COLOR) format "\n", __LINE__, ##__VA_ARGS__)
@@ -162,6 +159,16 @@ static void mem_set_var(void* ptr, int value, size_t size, size_t val_size) {
 	if (ptr == NULL) return;
 	for (size_t i = 0; i < size; ++i) CAST_PTR(ptr, u8)[i] = CAST_PTR(&value, u8)[i % val_size]; 
 	return;
+}
+
+static char* reverse_str(char* str) {
+    int len = str_len(str);
+    for (int i = 0; i < (len / 2); ++i) {
+        char temp = str[i];
+        str[i] = str[len - i - 1];
+        str[len - i - 1] = temp;
+    }
+    return str;
 }
 
 #endif // _CHONKY_NUMS_UTILS_IMPLEMENTATION_
@@ -287,13 +294,13 @@ EXPORT_FUNCTION void dealloc_chonky_num(BigNum* num) {
 
 
 static int chonky_shift_dec(BigNum* num, u64* temp) {
-	const u64 num_size = MIN(num -> size / 8, align_64(chonky_real_size(num)) / 8 + 1);
+	const u64 num_size = MIN(num -> size / 8 - 1, align_64(chonky_real_size(num)) / 8 + 1);
 
 	mem_cpy(temp, num -> data, num -> size);
 	mem_set(num -> data, 0, num -> size);
 
 	for (u64 i = 0; i < num_size; ++i) {
-		*((u128*) (num -> data_64 + i)) += temp[i] * 10;
+		*((u128*) (num -> data_64 + i)) += ((u128) temp[i]) * 10;
 	}
 
 	return 0;
@@ -301,7 +308,7 @@ static int chonky_shift_dec(BigNum* num, u64* temp) {
 
 static void chonky_add_decimal(BigNum* num, const u8 dec) {
 	u64 carry = _addcarry_u64(0, *(num -> data_64), dec, num -> data_64);
-	const u64 num_size = align_64(chonky_real_size(num)) / 8;
+	const u64 num_size = MIN(num -> size / 8, align_64(chonky_real_size(num)) / 8 + 1);
 	
 	for (u64 i = 1; carry && i < num_size; ++i) {
 		carry = _addcarry_u64(carry, (num -> data_64)[i], 0, num -> data_64 + i);
@@ -410,8 +417,6 @@ static bool is_chonky_zero(BigNum* num) {
 }
 
 static u8 chonky_dec_divmod(BigNum* num) {
-	u8 val = *(num -> data) % 10;
-	
 	u32 rem = 0;
 	const u64 num_size = chonky_real_size(num);
 
@@ -421,21 +426,16 @@ static u8 chonky_dec_divmod(BigNum* num) {
         rem = cur % 10;
 	}
 
-	if (rem != val) {
-		printf("\n\n");
-		DEBUG_LOG("%u, %u, %llu, %llX, %u, %X", rem, val, *(num -> data_64), *(num -> data_64), *(num -> data), *(num -> data));
-		abort();
-	}
-
-	return val;
+	return rem;
 }
 
 #define PRINT_CHONKY_NUM(num)     print_chonky_num(#num, num, TRUE)
 #define PRINT_CHONKY_NUM_DEC(num) print_chonky_num(#num, num, FALSE)
 EXPORT_FUNCTION void print_chonky_num(char* name, BigNum* num, bool use_hex) {
 	const u64 real_size = chonky_real_size(num);
-	printf("%s[size: %llu, real size: %llu]: %s", name, num -> size, real_size, num -> sign ? "-" : "");
 	
+	printf("%s: %s", name, num -> sign ? "-" : "");
+
 	if (use_hex) {
 		for (s64 i = real_size - 1; i >= 0; --i) {
 			printf("%02X", (num -> data)[i]);
@@ -447,51 +447,61 @@ EXPORT_FUNCTION void print_chonky_num(char* name, BigNum* num, bool use_hex) {
 			return;
 		}
 
-		u32 n = 0;
-		while (!is_chonky_zero(num_dp)) {
-			u8 val = chonky_dec_divmod(num_dp);
-			printf("%u", val);
-
-			if (n > 256) {
-				dealloc_chonky_num(num_dp);
-				DEBUG_LOG("\n\nFAIL");
-				return;
-			}
-			n++;
+		char* buf = calloc(num_dp -> size * 3, sizeof(u8));
+		if (num_dp == NULL) {
+			dealloc_chonky_num(num_dp);
+			WARNING_LOG("Failed to alloc the buffer.");
+			return;
 		}
 
+		for (u64 i = 0; !is_chonky_zero(num_dp); ++i) {
+			buf[i] = chonky_dec_divmod(num_dp) + '0';
+		}
+
+		reverse_str(buf);
+
 		dealloc_chonky_num(num_dp);
+
+		printf("%s", buf);
+		SAFE_FREE(buf);
 	}
 
-	printf("\n");
+	printf(" (size: %llu, real size: %llu)\n", num -> size, real_size);
+
 	return;
 }
 
 /// -------------------------------
 ///  Internal Operations Functions
 /// -------------------------------
+// TODO: Maybe should use real_size instead of -> size??
 static BigNum* __chonky_add(BigNum* res, const BigNum* a, const BigNum* b) {
 	const u64 size = res -> size / 8; 
-	
+	const u64 a_size = a -> size / 8;
+	const u64 b_size = b -> size / 8;
+
 	u64 carry = 0;
 	for (u64 i = 0; i < size; ++i) {
 		u64* acc = res -> data_64 + i;
-		const u64 a_val = (i < a -> size) ? (a -> data_64)[i] : 0;
-		const u64 b_val = (i < b -> size) ? (b -> data_64)[i] : 0;
+		const u64 a_val = (i < a_size) ? (a -> data_64)[i] : 0;
+		const u64 b_val = (i < b_size) ? (b -> data_64)[i] : 0;
 		carry = _addcarry_u64(carry, a_val, b_val, acc);
 	}
 
 	return res;
 }
 
+// TODO: Maybe should use real_size instead of -> size??
 static BigNum* __chonky_sub(BigNum* res, const BigNum* a, const BigNum* b) {
 	const u64 size = res -> size / 8; 
+	const u64 a_size = a -> size / 8;
+	const u64 b_size = b -> size / 8;
 	
 	u64 carry = 0;
 	for (u64 i = 0; i < size; ++i) {
 		u64* acc = res -> data_64 + i;
-		const u64 a_val = (i < a -> size) ? (a -> data_64)[i] : 0;
-		const u64 b_val = (i < b -> size) ? (b -> data_64)[i] : 0;
+		const u64 a_val = (i < a_size) ? (a -> data_64)[i] : 0;
+		const u64 b_val = (i < b_size) ? (b -> data_64)[i] : 0;
 		carry = _subborrow_u64(carry, a_val, b_val, acc);
 	}
 	
