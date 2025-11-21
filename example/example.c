@@ -54,20 +54,24 @@ int example_b(void) {
 }
 
 int example_c(void) {
-	BigNum* a = alloc_chonky_num_from_string("-590295810358705651776");
+	BigNum* a = alloc_chonky_num_from_hex_string("F2B9F3D7464C523FA37B5CE8DAFF2272BF29E5731C0FC57CB4A6E484085C1FA3F6955D6F9B7BD01278D4B8CFE59F97DF180FAE2E9F651BBDA3A2A3E0F677284E");
 	if (a == NULL) return 1;
 	
-	BigNum* b = alloc_chonky_num_from_string("263951510142976");
+	BigNum* b = alloc_chonky_num_from_hex_string("FF");
 	if (b == NULL) return 1;
 	
-	BigNum* c = chonky_add(a, b);
+	BigNum* c = alloc_chonky_num_from_hex_string("7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFED");
 	if (c == NULL) return 1;
+	
+	BigNum* res = chonky_pow_mod_mersenne(a, b, c);
+	if (res == NULL) return 1;
 
-	PRINT_CHONKY_NUM_DEC(a);
-	PRINT_CHONKY_NUM_DEC(b);
-	PRINT_CHONKY_NUM_DEC(c);
+	PRINT_CHONKY_NUM(a);
+	PRINT_CHONKY_NUM(b);
+	PRINT_CHONKY_NUM(c);
+	PRINT_CHONKY_NUM(res);
 
-	DEALLOC_CHONKY_NUMS(a, b, c);
+	DEALLOC_CHONKY_NUMS(a, b, c, res);
 
 	return 0;
 }
