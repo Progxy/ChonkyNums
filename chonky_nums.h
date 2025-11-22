@@ -766,6 +766,9 @@ static BigNum* __chonky_mask(BigNum* res, BigNum* num, const u64 bit_cnt) {
 	return res;
 }
 
+// TODO: Should probably alert the user that the given number is a bad general
+// mersenne prime, if the factor is too near to the max exponent of the prime
+// in polynomial form
 static BigNum* get_mersenne_factor(const BigNum* num, BigNum* mersenne_c) {
 	const u64 num_bit_size = chonky_bit_size(num);
 	
