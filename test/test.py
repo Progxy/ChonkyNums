@@ -149,7 +149,7 @@ def test_div(chonky_nums):
 @timed
 def test_pow(chonky_nums):   
     for i in range(1000):
-        print(f"Testing {i + 1} out of 1000", end='\r')
+        print(f"Testing {i + 1} out of 1000", end="\r")
         a = random.getrandbits(512)
         b = random.getrandbits(8)
         expected = a ** b
@@ -176,7 +176,6 @@ def test_pow(chonky_nums):
         chonky_nums.dealloc_chonky_num(res)
 
         assert result == expected, f"Mismatch:\nA = {a:x}\nB = {b:x}\nRes = {result:x}\nExp = {expected:x}"
-    
     print("                                                         ") 
     
     return
@@ -216,8 +215,7 @@ def test_mod(chonky_nums):
 def test_mod_mersenne(chonky_nums):   
     for i in range(10000):
         a = random.getrandbits(512)
-        a = int("e4bb3fe5e6204348e0959c1155d0bbadb13b19eaf3b91047e6509a41a6891fb109fa6bc9974500fc3e17982ef52b23f411ecfba1e83a1e069405b077c87e0a30", 16)
-        b = 2 ** 255 - 19
+        b = random.getrandbits(512)
         expected = a % b
 
         a_bytes = int_to_bytes(a)
@@ -291,27 +289,9 @@ def test_pow_mod_mersenne(chonky_nums):
     for i in range(10000):
         print(f"Testing {i + 1} out of 10000", end='\r')
         
-        if i == 0:
-            a = int("732F21CCB3E251385F766FA4B63A6E607CB41E6C9F72EE7CE846D9B7E3B0AE4512D98F943831D563EC726D23591CBE7D7C431B90678C8EDA29A3B4099CC10D32", 16)
-            b = 0x92
-        else:
-            a = random.getrandbits(512)
-            b = random.getrandbits(8)
-        
+        a = random.getrandbits(512)
+        b = random.getrandbits(8)
         expected = (a ** b) % c
-
-        # print("\n\n----------------------------------------")
-        # res = 1
-        # base = a % c
-        # xx = base * base
-        # print(f"base:{base:X}\nxx:{xx:X}")
-        # for j in range(0, 8):
-        #     if (b >> j) & 1:
-        #         res = (res * base) % c
-
-        #     base = (base * base) % c
-        #     print(f"res={res:X}\nbase={base:X}\n")
-        # print("----------------------------------------\n\n")
 
         a_bytes = int_to_bytes(a)
         b_bytes = int_to_bytes(b)
@@ -339,7 +319,6 @@ def test_pow_mod_mersenne(chonky_nums):
         chonky_nums.dealloc_chonky_num(res)
 
         assert result == expected, f"Mismatch:\nA = {a:x}\nB = {b:x}\nC = {c:x}\nRes = {result:x}\nExp = {expected:x}"
-        assert i != 0    
     print("                                                         ") 
     
     return
@@ -347,32 +326,32 @@ def test_pow_mod_mersenne(chonky_nums):
 if __name__ == "__main__":
     chonky_nums = ChonkyNums()
 
-    # print("Testing chonky_add...")
-    # test_add(chonky_nums)
+    print("Testing chonky_add...")
+    test_add(chonky_nums)
     
-    # print("Testing chonky_sub...")
-    # test_sub(chonky_nums)
+    print("Testing chonky_sub...")
+    test_sub(chonky_nums)
     
-    # print("Testing chonky_mul...")
-    # test_mul(chonky_nums)
+    print("Testing chonky_mul...")
+    test_mul(chonky_nums)
     
-    # print("Testing chonky_div...")
-    # test_div(chonky_nums)
+    print("Testing chonky_div...")
+    test_div(chonky_nums)
 
-    # print("Testing chonky_pow...")
-    # test_pow(chonky_nums)
+    print("Testing chonky_pow...")
+    test_pow(chonky_nums)
 
-    # print("Testing chonky_mod...")
-    # test_mod(chonky_nums)
+    print("Testing chonky_mod...")
+    test_mod(chonky_nums)
 
     print("Testing chonky_mod_mersenne...")
     test_mod_mersenne(chonky_nums)
 
-    # print("Testing chonky_pow_mod...")
-    # test_pow_mod(chonky_nums)
+    print("Testing chonky_pow_mod...")
+    test_pow_mod(chonky_nums)
 
     print("Testing chonky_pow_mod_mersenne...")
     test_pow_mod_mersenne(chonky_nums)
 
-    print("Test passed")
+    print("Tests passed")
 
