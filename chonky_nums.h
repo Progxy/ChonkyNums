@@ -23,6 +23,7 @@
 #define EXPORT_FUNCTION extern
 #define EXPORT_ENUM
 #define EXPORT_STRUCTURE
+#define CHONKY_FAILABLE
 
 #ifndef NO_INLINE
 	#define NO_INLINE __attribute__((__noinline__))
@@ -173,12 +174,12 @@ static char* reverse_str(char* str) {
 
 #endif // _CHONKY_NUMS_UTILS_IMPLEMENTATION_
 
-// TODO: Check memory deallocations on error paths.
 // TODO: Check for error handling paths.
 // TODO: Refactor a bit and clean.
 /// -----------------------------------------
 ///  BigNum Structure Manipulation Functions
 /// -----------------------------------------
+#define IS_VALID_BIG_NUM(num) (((num) != NULL) && ((num) -> data != NULL))
 EXPORT_STRUCTURE typedef struct BigNum {
 	union {
 		u8* data;
@@ -215,12 +216,12 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num(const u8* data, const u64 size, bool si
 	return num;
 }
 
-static BigNum* dup_chonky_num(const BigNum* num) {
+CHONKY_FAILABLE static BigNum* dup_chonky_num(const BigNum* num) {
 	BigNum* duped = alloc_chonky_num(num -> data, num -> size, num -> sign);
 	return duped;
 }
 
-static BigNum* copy_chonky_num(BigNum* num, const BigNum* src) {
+CHONKY_FAILABLE static BigNum* copy_chonky_num(BigNum* num, const BigNum* src) {
 	num -> data = (u8*) realloc(num -> data, src -> size * sizeof(u8));
 	if (num -> data == NULL) {
 		WARNING_LOG("Failed to resize data buffer.");
@@ -233,7 +234,6 @@ static BigNum* copy_chonky_num(BigNum* num, const BigNum* src) {
 }
 
 static u64 chonky_real_size(const BigNum* num) {
-	if (num -> data == NULL) return 0;
 	u64 size = num -> size;
 	for (s64 i = num -> size - 1; i >= 0; --i) {
 		if ((num -> data)[i]) break;
@@ -243,7 +243,6 @@ static u64 chonky_real_size(const BigNum* num) {
 }
 
 static u64 chonky_real_size_64(const BigNum* num) {
-	if (num -> data == NULL) return 0;
 	u64 size = num -> size / 8;
 	for (s64 i = (num -> size / 8) - 1; i >= 0; --i) {
 		if ((num -> data_64)[i]) break;
@@ -253,8 +252,6 @@ static u64 chonky_real_size_64(const BigNum* num) {
 }
 
 static u64 chonky_bit_size(const BigNum* num) {
-	if (num -> data == NULL) return 0;
-	
 	u64 size = num -> size;
 	for (s64 i = num -> size - 1; i >= 0; --i) {
 		if ((num -> data)[i]) break;
@@ -271,7 +268,7 @@ static u64 chonky_bit_size(const BigNum* num) {
 	return size;
 }
 
-static int chonky_resize(BigNum* num, u64 new_size) {
+CHONKY_FAILABLE static int chonky_resize(BigNum* num, u64 new_size) {
 	if (new_size == 0) new_size = align_64(chonky_real_size(num));
 	else new_size = align_64(new_size);
 
@@ -387,11 +384,9 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num_from_string(const char* data_str) {
 
 static inline u8 char_to_hex(char c) {
 	u8 val = 0;
-	
-	if      (c >= '0' && c <= '9') val = c - '0';
+	if (c >= '0' && c <= '9')      val = c - '0';
 	else if (c >= 'a' && c <= 'f') val = c - 'a' + 10;
-	else                           val = c - 'A' + 10;
-	
+	else val = c - 'A' + 10;
 	return val;
 }
 
@@ -447,6 +442,12 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num_from_hex_string(const char* data_str) {
 /// -------------------------------
 ///  Generic Operations Functions
 /// -------------------------------
+static u64 __chonky_spow(u64 base, u64 exp) {
+	u64 result = 1;
+	for (u64 i = 0; i < exp; ++i) result *= base;
+	return result;
+}
+
 static BigNum* __chonky_rshift(BigNum* num, u64 bit_cnt) {
 	const u64 byte_cnt = (bit_cnt / 8) + !!(bit_cnt % 8);
 	if (byte_cnt > num -> size) {
@@ -473,11 +474,6 @@ static BigNum* __chonky_rshift(BigNum* num, u64 bit_cnt) {
 }
 
 static bool chonky_is_gt(const BigNum* a, const BigNum* b) {
-	if (a == NULL || b == NULL) {
-		WARNING_LOG("Parameters must be not null.");
-		return FALSE;
-	}
-
 	u64 a_size = chonky_real_size(a);
 	u64 b_size = chonky_real_size(b);
 	
@@ -493,15 +489,9 @@ static bool chonky_is_gt(const BigNum* a, const BigNum* b) {
 }
 
 static bool is_chonky_zero(BigNum* num) {
-	if (num == NULL) {
-		WARNING_LOG("Parameters must be not null.");
-		return FALSE;
-	}
-
 	for (u64 i = 0; i < num -> size / 8; ++i) {
 		if ((num -> data_64)[i]) return FALSE;
 	}
-	
 	return TRUE;
 }
 
@@ -521,8 +511,12 @@ static u8 chonky_dec_divmod(BigNum* num) {
 #define PRINT_CHONKY_NUM(num)     print_chonky_num(#num, num, TRUE)
 #define PRINT_CHONKY_NUM_DEC(num) print_chonky_num(#num, num, FALSE)
 EXPORT_FUNCTION void print_chonky_num(char* name, BigNum* num, bool use_hex) {
-	const u64 real_size = chonky_real_size(num);
+	if (!IS_VALID_BIG_NUM(num)) {
+		WARNING_LOG("Invalid big num.");
+		return;
+	}
 	
+	const u64 real_size = chonky_real_size(num);
 	printf("%s: %s", name, num -> sign ? "-" : "");
 
 	if (use_hex) {
@@ -603,7 +597,7 @@ static BigNum* __chonky_sub(BigNum* res, const BigNum* a, const BigNum* b) {
 	return res;
 }
 
-static BigNum* __chonky_mul_s(BigNum* res, const BigNum* a, const BigNum* b) {
+CHONKY_FAILABLE static BigNum* __chonky_mul_s(BigNum* res, const BigNum* a, const BigNum* b) {
 	u64 a_size = align_64(chonky_real_size(a));
 	u64 b_size = align_64(chonky_real_size(b));
 	CHONKY_ASSERT(res -> size > (a_size + b_size));
@@ -643,7 +637,7 @@ static void __chonky_divstep(u64 size_diff, BigNum* a, const BigNum* b, u64 c) {
 	return;
 }
 
-static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder, const BigNum* a, const BigNum* b) {
+CHONKY_FAILABLE static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder, const BigNum* a, const BigNum* b) {
 	// NOTE: We do not support floating point division for now
 	if (chonky_real_size(a) < chonky_real_size(b)) return quotient;
 	
@@ -692,7 +686,7 @@ static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder, const BigNum* a
 	return quotient;
 }
 
-static BigNum* __chonky_pow(BigNum* res, const BigNum* num, const BigNum* exp) {
+CHONKY_FAILABLE static BigNum* __chonky_pow(BigNum* res, const BigNum* num, const BigNum* exp) {
     BigNum* temp = dup_chonky_num(res);
 	if (temp == NULL) return NULL;
 	
@@ -717,13 +711,19 @@ static BigNum* __chonky_pow(BigNum* res, const BigNum* num, const BigNum* exp) {
 		const u8 bit_s = (i < step_cnt - 1) ? 8 : bit_size((exp -> data)[i]);
 		for (u8 j = 0; j < bit_s; ++j) {
 			if (GET_BIT((exp -> data)[i], j) == 1) {
-				__chonky_mul_s(temp, res, base);
+				if (__chonky_mul_s(temp, res, base) == NULL) {
+					DEALLOC_CHONKY_NUMS(base, temp, temp_base);
+					return NULL;
+				}
 				mem_cpy(res -> data, temp -> data, res -> size);
 			}
 
 			if (i == step_cnt - 1 && j == bit_s - 1) break;
 
-			__chonky_mul_s(temp_base, base, base);
+			if (__chonky_mul_s(temp_base, base, base) == NULL) {
+				DEALLOC_CHONKY_NUMS(base, temp, temp_base);
+				return NULL;
+			}
 			mem_cpy(base -> data, temp_base -> data, base -> size);
 		}
 	}
@@ -733,7 +733,7 @@ static BigNum* __chonky_pow(BigNum* res, const BigNum* num, const BigNum* exp) {
 	return res;
 }
 
-static BigNum* __chonky_mod(BigNum* res, const BigNum* num, const BigNum* base) {
+CHONKY_FAILABLE static BigNum* __chonky_mod(BigNum* res, const BigNum* num, const BigNum* base) {
 	if (chonky_is_gt(base, num)) {
 		mem_cpy(res -> data, num -> data, num -> size);
 		return res;
@@ -769,7 +769,7 @@ static BigNum* __chonky_mask(BigNum* res, BigNum* num, const u64 bit_cnt) {
 // TODO: Should probably alert the user that the given number is a bad general
 // mersenne prime, if the factor is too near to the max exponent of the prime
 // in polynomial form
-static BigNum* get_mersenne_factor(const BigNum* num, BigNum* mersenne_c) {
+CHONKY_FAILABLE static BigNum* get_mersenne_factor(const BigNum* num, BigNum* mersenne_c) {
 	const u64 num_bit_size = chonky_bit_size(num);
 	
 	BigNum* temp = alloc_chonky_num(NULL, (num_bit_size / 8) + 8, 0);
@@ -785,7 +785,7 @@ static BigNum* get_mersenne_factor(const BigNum* num, BigNum* mersenne_c) {
 	return mersenne_c;
 }
 
-static BigNum* __chonky_mod_mersenne(BigNum* res, const BigNum* num, const BigNum* base) {
+CHONKY_FAILABLE static BigNum* __chonky_mod_mersenne(BigNum* res, const BigNum* num, const BigNum* base) {
 	if (chonky_is_gt(base, num)) {
 		mem_cpy(res -> data, num -> data, base -> size);
 		return res;
@@ -814,7 +814,10 @@ static BigNum* __chonky_mod_mersenne(BigNum* res, const BigNum* num, const BigNu
 		__chonky_rshift(temp_res, base_bit_cnt);
 		
 		if (!is_chonky_zero(temp_res)) {
-			__chonky_mul_s(temp_res, temp_res, res);
+			if (__chonky_mul_s(temp_res, temp_res, res) == NULL) {
+				DEALLOC_CHONKY_NUMS(low, temp_res);
+				return NULL;
+			}
 			__chonky_add(temp_res, temp_res, low);
 		} else {
 			__chonky_sub(temp_res, low, base);
@@ -828,9 +831,8 @@ static BigNum* __chonky_mod_mersenne(BigNum* res, const BigNum* num, const BigNu
 	return res;
 }
 
-// TODO: Error Handling missing in this function
 // TODO: There is probably also some method to reduce the exponent
-static BigNum* __chonky_pow_mod(BigNum* res, const BigNum* num, const BigNum* exp, const BigNum* mod_base) {
+CHONKY_FAILABLE static BigNum* __chonky_pow_mod(BigNum* res, const BigNum* num, const BigNum* exp, const BigNum* mod_base) {
  	BigNum* temp = alloc_chonky_num(NULL, res -> size * 2 + 8, res -> sign);
 	if (temp == NULL) return NULL;
 
@@ -852,18 +854,39 @@ static BigNum* __chonky_pow_mod(BigNum* res, const BigNum* num, const BigNum* ex
 	if (chonky_is_gt(num, mod_base)) __chonky_mod(base, num, mod_base);
 	else mem_cpy(base -> data, num -> data, num -> size);
 
-	for (u64 i = 0; i < chonky_real_size(exp); ++i) {
-		const u8 bit_s = (i < chonky_real_size(exp) - 1) ? 8 : bit_size((exp -> data)[i]);
+	const u64 step_cnt = chonky_real_size(exp);
+	for (u64 i = 0; i < step_cnt; ++i) {
+		const u8 bit_s = (i < step_cnt - 1) ? 8 : bit_size((exp -> data)[i]);
 		for (u8 j = 0; j < bit_s; ++j) {
 			if (GET_BIT((exp -> data)[i], j) == 1) {
-				__chonky_mul_s(temp, res, base);
-				if (chonky_is_gt(temp, mod_base)) __chonky_mod(res, temp, mod_base);
-				else mem_cpy(res -> data, temp -> data, res -> size);
+				if (__chonky_mul_s(temp, res, base) == NULL) {
+					DEALLOC_CHONKY_NUMS(base, temp, temp_base);
+					return NULL;
+				}
+				
+				if (chonky_is_gt(temp, mod_base)) {
+					if (__chonky_mod(res, temp, mod_base) == NULL) {
+						DEALLOC_CHONKY_NUMS(base, temp, temp_base);
+						return NULL;
+					}
+				} else {
+					mem_cpy(res -> data, temp -> data, res -> size);
+				}
 			}
 
-			__chonky_mul_s(temp_base, base, base);
-			if (chonky_is_gt(temp_base, mod_base)) __chonky_mod(base, temp_base, mod_base);
-			else mem_cpy(base -> data, temp_base -> data, base -> size);
+			if (__chonky_mul_s(temp_base, base, base) == NULL) {
+				DEALLOC_CHONKY_NUMS(base, temp, temp_base);
+				return NULL;
+			}
+			
+			if (chonky_is_gt(temp_base, mod_base)) {
+				if (__chonky_mod(base, temp_base, mod_base) == NULL) {
+					DEALLOC_CHONKY_NUMS(base, temp, temp_base);
+					return NULL;
+				}
+			} else {
+				mem_cpy(base -> data, temp_base -> data, base -> size);
+			}
 		}
 	}
 	
@@ -872,9 +895,8 @@ static BigNum* __chonky_pow_mod(BigNum* res, const BigNum* num, const BigNum* ex
 	return res;
 }
 
-// TODO: Error Handling missing in this function
 // TODO: There is probably also some method to reduce the exponent
-static BigNum* __chonky_pow_mod_mersenne(BigNum* res, const BigNum* num, const BigNum* exp, const BigNum* mod_base) {
+CHONKY_FAILABLE static BigNum* __chonky_pow_mod_mersenne(BigNum* res, const BigNum* num, const BigNum* exp, const BigNum* mod_base) {
  	BigNum* temp = alloc_chonky_num(NULL, res -> size * 2 + 8, res -> sign);
 	if (temp == NULL) return NULL;
 
@@ -900,14 +922,34 @@ static BigNum* __chonky_pow_mod_mersenne(BigNum* res, const BigNum* num, const B
 		const u8 bit_s = (i < chonky_real_size(exp) - 1) ? 8 : bit_size((exp -> data)[i]);
 		for (u8 j = 0; j < bit_s; ++j) {
 			if (GET_BIT((exp -> data)[i], j) == 1) {
-				__chonky_mul_s(temp, res, base);
-				if (chonky_is_gt(temp, mod_base)) __chonky_mod_mersenne(res, temp, mod_base);
-				else mem_cpy(res -> data, temp -> data, res -> size);
+				if (__chonky_mul_s(temp, res, base) == NULL) {
+					DEALLOC_CHONKY_NUMS(temp, temp_base, base);
+					return NULL;
+				}
+				
+				if (chonky_is_gt(temp, mod_base)) {
+					if (__chonky_mod_mersenne(res, temp, mod_base) == NULL) {
+						DEALLOC_CHONKY_NUMS(temp, temp_base, base);
+						return NULL;
+					}
+				} else {
+					mem_cpy(res -> data, temp -> data, res -> size);
+				}
 			}
 
-			__chonky_mul_s(temp_base, base, base);
-			if (chonky_is_gt(temp_base, mod_base)) __chonky_mod_mersenne(base, temp_base, mod_base);
-			else mem_cpy(base -> data, temp_base -> data, base -> size);
+			if (__chonky_mul_s(temp_base, base, base) == NULL) {
+				DEALLOC_CHONKY_NUMS(temp, temp_base, base);
+				return NULL;
+			}
+			
+			if (chonky_is_gt(temp_base, mod_base)) {
+				if (__chonky_mod_mersenne(base, temp_base, mod_base) == NULL) {
+					DEALLOC_CHONKY_NUMS(temp, temp_base, base);
+					return NULL;
+				}
+			} else {
+				mem_cpy(base -> data, temp_base -> data, base -> size);
+			}
 		}
 	}
 	
@@ -916,10 +958,12 @@ static BigNum* __chonky_pow_mod_mersenne(BigNum* res, const BigNum* num, const B
 	return res;
 }
 
-
+/// -----------------------------------------
+///  BigNum Structure Manipulation Functions
+/// -----------------------------------------
 EXPORT_FUNCTION BigNum* chonky_add(const BigNum* a, const BigNum* b) {
-	if (a == NULL || b == NULL) {
-		WARNING_LOG("Parameters must be not null.");
+	if (!IS_VALID_BIG_NUM(a) || !IS_VALID_BIG_NUM(b)) {
+		WARNING_LOG("Invalid parameters, should not contain NULL pointers.");
 		return NULL;
 	}
 
@@ -940,17 +984,25 @@ EXPORT_FUNCTION BigNum* chonky_add(const BigNum* a, const BigNum* b) {
 }
 
 EXPORT_FUNCTION BigNum* chonky_sub(const BigNum* a, const BigNum* b) {
+	if (!IS_VALID_BIG_NUM(a) || !IS_VALID_BIG_NUM(b)) {
+		WARNING_LOG("Invalid parameters, should not contain NULL pointers.");
+		return NULL;
+	}
+
 	BigNum* minuend = dup_chonky_num(b);
 	if (minuend == NULL) return NULL;
+	
 	minuend -> sign = !(b -> sign);
+	
 	BigNum* res = chonky_add(a, minuend);
 	dealloc_chonky_num(minuend);
+	
 	return res;
 }
 
 EXPORT_FUNCTION BigNum* chonky_mul(const BigNum* a, const BigNum* b) {
-	if (a == NULL || b == NULL) {
-		WARNING_LOG("Parameters must be not null.");
+	if (!IS_VALID_BIG_NUM(a) || !IS_VALID_BIG_NUM(b)) {
+		WARNING_LOG("Invalid parameters, should not contain NULL pointers.");
 		return NULL;
 	}
 
@@ -958,14 +1010,17 @@ EXPORT_FUNCTION BigNum* chonky_mul(const BigNum* a, const BigNum* b) {
 	if (res == NULL) return NULL;
 	
 	res -> sign = a -> sign | b -> sign;
-	res = __chonky_mul_s(res, a, b);
+	if (__chonky_mul_s(res, a, b) == NULL) {
+		dealloc_chonky_num(res);
+		return NULL;
+	}
 
 	return res;
 }
 
 EXPORT_FUNCTION BigNum* chonky_div(const BigNum* a, const BigNum* b) {
-	if (a == NULL || b == NULL) {
-		WARNING_LOG("Parameters must be not null.");
+	if (!IS_VALID_BIG_NUM(a) || !IS_VALID_BIG_NUM(b)) {
+		WARNING_LOG("Invalid parameters, should not contain NULL pointers.");
 		return NULL;
 	}
 
@@ -974,22 +1029,19 @@ EXPORT_FUNCTION BigNum* chonky_div(const BigNum* a, const BigNum* b) {
 
 	res -> sign = a -> sign | b -> sign;
 	
-	res = __chonky_div(res, NULL, a, b);
+	if (__chonky_div(res, NULL, a, b) == NULL) {
+		dealloc_chonky_num(res);
+		return NULL;
+	}
 	
 	if (chonky_resize(res, 0)) return NULL;
 
 	return res;
 }
 
-static u64 __chonky_spow(u64 base, u64 exp) {
-	u64 result = 1;
-	for (u64 i = 0; i < exp; ++i) result *= base;
-	return result;
-}
-
 EXPORT_FUNCTION BigNum* chonky_pow(const BigNum* num, const BigNum* exp) {
-	if (num == NULL || exp == NULL) {
-		WARNING_LOG("Parameters must be not null.");
+	if (!IS_VALID_BIG_NUM(num) || !IS_VALID_BIG_NUM(exp)) {
+		WARNING_LOG("Invalid parameters, should not contain NULL pointers.");
 		return NULL;
 	} else if (chonky_real_size(exp) > 4) {
 		WARNING_LOG("Pure exponentiation, does not allow for exponent with more than four bytes (%llu).", chonky_real_size(exp));
@@ -1001,7 +1053,10 @@ EXPORT_FUNCTION BigNum* chonky_pow(const BigNum* num, const BigNum* exp) {
 	if (res == NULL) return NULL;
 
 	res -> sign = num -> sign * ((exp -> data)[0] & 0x01);
-	res = __chonky_pow(res, num, exp);
+	if (__chonky_pow(res, num, exp) == NULL) {
+		dealloc_chonky_num(res);
+		return NULL;
+	}
 	
 	if (chonky_resize(res, 0)) return NULL;
 
@@ -1009,8 +1064,8 @@ EXPORT_FUNCTION BigNum* chonky_pow(const BigNum* num, const BigNum* exp) {
 }
 
 EXPORT_FUNCTION BigNum* chonky_mod(const BigNum* num, const BigNum* mod) {
-	if (num == NULL || mod == NULL) {
-		WARNING_LOG("Parameters must be not null.");
+	if (!IS_VALID_BIG_NUM(num) || !IS_VALID_BIG_NUM(mod)) {
+		WARNING_LOG("Invalid parameters, should not contain NULL pointers.");
 		return NULL;
 	}
 
@@ -1018,21 +1073,19 @@ EXPORT_FUNCTION BigNum* chonky_mod(const BigNum* num, const BigNum* mod) {
 	BigNum* res = alloc_chonky_num(NULL, align_64(size), 0);
 	if (res == NULL) return NULL;
 
-	__chonky_mod(res, num, mod);
+	if (__chonky_mod(res, num, mod) == NULL) {
+		dealloc_chonky_num(res);
+		return NULL;
+	}
 	
 	if (chonky_resize(res, 0)) return NULL;
 
 	return res;
 }
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * NOTE:                                                   * 
- * We do not check if the mod given is a Mersenne prime,   *
- * as that's the job of the caller                         *
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 EXPORT_FUNCTION BigNum* chonky_mod_mersenne(const BigNum* num, const BigNum* mod) {
-	if (num == NULL || mod == NULL) {
-		WARNING_LOG("Parameters must be not null.");
+	if (!IS_VALID_BIG_NUM(num) || !IS_VALID_BIG_NUM(mod)) {
+		WARNING_LOG("Invalid parameters, should not contain NULL pointers.");
 		return NULL;
 	}
 
@@ -1040,7 +1093,10 @@ EXPORT_FUNCTION BigNum* chonky_mod_mersenne(const BigNum* num, const BigNum* mod
 	BigNum* res = alloc_chonky_num(NULL, align_64(size), 0);
 	if (res == NULL) return NULL;
 
-	__chonky_mod_mersenne(res, num, mod);
+	if (__chonky_mod_mersenne(res, num, mod) == NULL) {
+		dealloc_chonky_num(res);
+		return NULL;
+	}
 	
 	if (chonky_resize(res, 0)) return NULL;
 
@@ -1048,8 +1104,8 @@ EXPORT_FUNCTION BigNum* chonky_mod_mersenne(const BigNum* num, const BigNum* mod
 }
 
 EXPORT_FUNCTION BigNum* chonky_pow_mod(const BigNum* num, const BigNum* exp, const BigNum* mod) {
-	if (num == NULL || exp == NULL || mod == NULL) {
-		WARNING_LOG("Parameters must be not null.");
+	if (!IS_VALID_BIG_NUM(num) || !IS_VALID_BIG_NUM(mod) || !IS_VALID_BIG_NUM(exp)) {
+		WARNING_LOG("Invalid parameters, should not contain NULL pointers.");
 		return NULL;
 	}
 
@@ -1057,21 +1113,19 @@ EXPORT_FUNCTION BigNum* chonky_pow_mod(const BigNum* num, const BigNum* exp, con
 	BigNum* res = alloc_chonky_num(NULL, align_64(size), 0);
 	if (res == NULL) return NULL;
 
-	__chonky_pow_mod(res, num, exp, mod);
+	if (__chonky_pow_mod(res, num, exp, mod) == NULL) {
+		dealloc_chonky_num(res);
+		return NULL;
+	}
 	
 	if (chonky_resize(res, 0)) return NULL;
 
 	return res;
 }
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * NOTE:                                                   * 
- * We do not check if the mod given is a Mersenne prime,   *
- * as that's the job of the caller                         *
- * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 EXPORT_FUNCTION BigNum* chonky_pow_mod_mersenne(const BigNum* num, const BigNum* exp, const BigNum* mod) {
-	if (num == NULL || mod == NULL) {
-		WARNING_LOG("Parameters must be not null.");
+	if (!IS_VALID_BIG_NUM(num) || !IS_VALID_BIG_NUM(mod) || !IS_VALID_BIG_NUM(exp)) {
+		WARNING_LOG("Invalid parameters, should not contain NULL pointers.");
 		return NULL;
 	}
 
@@ -1079,7 +1133,10 @@ EXPORT_FUNCTION BigNum* chonky_pow_mod_mersenne(const BigNum* num, const BigNum*
 	BigNum* res = alloc_chonky_num(NULL, align_64(size), 0);
 	if (res == NULL) return NULL;
 
-	__chonky_pow_mod_mersenne(res, num, exp, mod);
+	if (__chonky_pow_mod_mersenne(res, num, exp, mod) == NULL) {
+		dealloc_chonky_num(res);
+		return NULL;
+	}
 	
 	if (chonky_resize(res, 0)) return NULL;
 
