@@ -25,17 +25,9 @@
 #define EXPORT_STRUCTURE
 #define CHONKY_FAILABLE
 
-#ifndef NO_INLINE
-	#define NO_INLINE __attribute__((__noinline__))
-#endif //NO_INLINE
-
 #ifndef PACKED_STRUCT
 	#define PACKED_STRUCT __attribute__((packed))
 #endif //PACKED_STRUCT
-
-#ifndef UNUSED_FUNCTION
-	#define UNUSED_FUNCTION __attribute__((unused))
-#endif //UNUSED_FUNCTION
 
 #ifndef TRUE
 	#define FALSE 0
@@ -174,8 +166,8 @@ static char* reverse_str(char* str) {
 
 #endif // _CHONKY_NUMS_UTILS_IMPLEMENTATION_
 
-// TODO: Check for error handling paths.
-// TODO: Refactor a bit and clean.
+// TODO: Refactor a bit and clean (also maybe some extra debug/warning prints
+// for easier tracking of faults/errors).
 /// -----------------------------------------
 ///  BigNum Structure Manipulation Functions
 /// -----------------------------------------
@@ -336,7 +328,7 @@ static void chonky_add_decimal(BigNum* num, const u8 dec) {
 EXPORT_FUNCTION BigNum* alloc_chonky_num_from_string(const char* data_str) {
 	const u64 data_str_len = str_len(data_str);
 	if (data_str == NULL || data_str_len == 0) {
-		WARNING_LOG("Invalid parameters.");
+		WARNING_LOG("Invalid parameters, string must not be empty or NULL pointer.");
 		return NULL;
 	}
 	
@@ -394,7 +386,7 @@ static inline u8 char_to_hex(char c) {
 EXPORT_FUNCTION BigNum* alloc_chonky_num_from_hex_string(const char* data_str) {
 	const u64 data_str_len = str_len(data_str);
 	if (data_str == NULL || data_str_len == 0) {
-		WARNING_LOG("Invalid parameters.");
+		WARNING_LOG("Invalid parameters, string must not be empty or NULL pointer.");
 		return NULL;
 	}
 	
@@ -959,7 +951,7 @@ CHONKY_FAILABLE static BigNum* __chonky_pow_mod_mersenne(BigNum* res, const BigN
 }
 
 /// -----------------------------------------
-///  BigNum Structure Manipulation Functions
+///  BigNum Public Functions
 /// -----------------------------------------
 EXPORT_FUNCTION BigNum* chonky_add(const BigNum* a, const BigNum* b) {
 	if (!IS_VALID_BIG_NUM(a) || !IS_VALID_BIG_NUM(b)) {
