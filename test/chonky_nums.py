@@ -22,6 +22,7 @@ class BigNum(ctypes.Structure):
 		("AnonymousUnionA", AnonymousUnionA),
 		("size", ctypes.c_uint64),
 		("sign", ctypes.c_uint8),
+		("is_freeable", ctypes.c_uint8),
 	]
 	_anonymous_ = ("AnonymousUnionA",)
 
@@ -61,6 +62,12 @@ class ChonkyNums(Chonky_nums):
 		alloc_chonky_num.argtypes = [ ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint64, ctypes.c_bool ]
 		alloc_chonky_num.restype = ctypes.POINTER(BigNum)
 		return alloc_chonky_num(data, size, sign)
+
+	def alloc_chonky_num_from_data(self, data, size, sign, is_freeable):
+		alloc_chonky_num_from_data = self.chonky_nums.alloc_chonky_num_from_data
+		alloc_chonky_num_from_data.argtypes = [ ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint64, ctypes.c_bool, ctypes.c_bool ]
+		alloc_chonky_num_from_data.restype = ctypes.POINTER(BigNum)
+		return alloc_chonky_num_from_data(data, size, sign, is_freeable)
 
 	def dealloc_chonky_num(self, num):
 		dealloc_chonky_num = self.chonky_nums.dealloc_chonky_num

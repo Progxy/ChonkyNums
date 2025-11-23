@@ -179,6 +179,7 @@ EXPORT_STRUCTURE typedef struct BigNum {
 	};
 	u64 size;
 	u8 sign;
+	u8 is_freeable;
 } BigNum;
 
 static inline u64 align_64(u64 val) {
@@ -194,6 +195,7 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num(const u8* data, const u64 size, bool si
 	}
 
 	num -> sign = sign;
+	num -> is_freeable = TRUE;
 	num -> size = align_64(size);
 
 	num -> data = (u8*) calloc(num -> size, sizeof(u8));
@@ -206,6 +208,22 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num(const u8* data, const u64 size, bool si
 	if (data != NULL) mem_cpy(num -> data, data, size);
 
 	return num;
+}
+
+// NOTE: The given data should be either freeable or not
+EXPORT_FUNCTION BigNum* alloc_chonky_num_from_data(u8* data, const u64 size, bool sign, bool is_freeable) {
+    BigNum* num = calloc(1, sizeof(BigNum));
+    if (num == NULL) {
+        WARNING_LOG("Failed to allocate BigNum.");
+        return NULL;
+    }
+
+    num -> sign = sign;
+    num -> is_freeable = is_freeable;
+    num -> size = align_64(size);
+    num -> data = data;
+
+    return num;
 }
 
 CHONKY_FAILABLE static BigNum* dup_chonky_num(const BigNum* num) {
@@ -283,7 +301,7 @@ void dealloc_chonky_nums(int len, ...) {
 
 	for (int i = 0; i < len; ++i) {
 		BigNum* num = va_arg(args, BigNum*);
-		free(num -> data);
+		if (num -> is_freeable) free(num -> data);
 		num -> data = NULL;
 		free(num);
     }
@@ -294,7 +312,7 @@ void dealloc_chonky_nums(int len, ...) {
 }
 
 EXPORT_FUNCTION void dealloc_chonky_num(BigNum* num) {
-	free(num -> data);
+	if (num -> is_freeable) free(num -> data);
 	num -> data = NULL;
 	free(num);
 	return;
@@ -338,6 +356,7 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num_from_string(const char* data_str) {
 		return NULL;
 	}
 
+	num -> is_freeable = TRUE;
 	num -> sign = (data_str[0] == '-');
 	num -> size = align_64(data_str_len / 2 + 1);
 
@@ -402,6 +421,7 @@ EXPORT_FUNCTION BigNum* alloc_chonky_num_from_hex_string(const char* data_str) {
 	if (hex_str_len > 2 && *hex_str == '0' && hex_str[1] == 'x') hex_str += 2;
 	hex_str_len = str_len(hex_str);
 	
+	num -> is_freeable = TRUE;
 	num -> sign = (data_str[0] == '-');
 	num -> size = align_64((hex_str_len - (hex_str_len % 2)) / 2 + (hex_str_len % 2));
 
