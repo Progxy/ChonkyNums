@@ -104,7 +104,6 @@ STATIC_ASSERT(sizeof(s64) == 8, "s64 must be 8 bytes");
 #endif //_CHONKY_NUMS_PRINTING_UTILS_
 
 #define SAFE_FREE(ptr) do { if ((ptr) != NULL) { free(ptr); (ptr) = NULL; } } while (0) 
-#define GET_BIT(val, bit_pos) (((val) >> (bit_pos)) & 0x01)
 #define CAST_PTR(ptr, type) ((type*) (ptr))
 #define MAX(a, b) ((a) > (b) ? (a) : (b)) 
 #define MIN(a, b) ((a) < (b) ? (a) : (b)) 
@@ -114,6 +113,9 @@ STATIC_ASSERT(sizeof(s64) == 8, "s64 must be 8 bytes");
 
 #include <stdarg.h>
 
+#define GET_BIT(val, bit_pos) (((val) >> (bit_pos)) & 0x01)
+
+#ifndef CHONKY_ASSERT
 // TODO: This has to go, as we want to also support kernel modules
 #define CHONKY_ASSERT(condition) chonky_assert(condition, #condition, __FILE__, __LINE__, __func__)
 static void chonky_assert(bool condition, const char* condition_str, const char* file, const int line, const char* func) {
@@ -122,6 +124,8 @@ static void chonky_assert(bool condition, const char* condition_str, const char*
 	abort();
 	return;
 }
+
+#endif //CHONKY_ASSERT
 
 static u8 bit_size(u8 val) {
 	u8 size = 8;
@@ -171,7 +175,14 @@ static char* reverse_str(char* str) {
 /// -----------------------------------------
 ///  BigNum Structure Manipulation Functions
 /// -----------------------------------------
-#define IS_VALID_BIG_NUM(num) (((num) != NULL) && ((num) -> data != NULL))
+
+/// NOTE: This method is not really safe, as it requires the size to be a
+/// multiple of 8, as well as being sure that the data will be still valid for
+/// the same amount of time as the BigNum.
+#define STATIC_BIG_NUM(_data, _size, _sign) ((BigNum) { .data = (u8*) (_data), .size = (_size), .sign = (_sign), .is_freeable = FALSE }) 
+#define POS_STATIC_BIG_NUM(_data, _size)    ((BigNum) { .data = (u8*) (_data), .size = (_size), .sign = 0, .is_freeable = FALSE }) 
+#define IS_VALID_BIG_NUM(num)               (((num) != NULL) && ((num) -> data != NULL))
+
 EXPORT_STRUCTURE typedef struct BigNum {
 	union {
 		u8* data;
