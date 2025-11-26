@@ -660,13 +660,16 @@ static void __chonky_divstep(u64 size_diff, BigNum* a, const BigNum* b, u64 c) {
 	return;
 }
 
+/// TODO: There are some problems when the dividend is less than 8 byte (with
+/// both `a_val` extraction, as well as __chonky_divstep going off bounds)
 CHONKY_FAILABLE static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder, const BigNum* a, const BigNum* b) {
 	// NOTE: We do not support floating point division for now
 	if (chonky_real_size(a) < chonky_real_size(b)) return quotient;
 	
-	BigNum* a_c = dup_chonky_num(a);
+	BigNum* a_c = alloc_chonky_num(NULL, a -> size + 8, a -> sign);
 	if (a_c == NULL) return NULL;
-	
+	mem_cpy(a_c -> data, a -> data, a -> size);
+
 	BigNum* b_c = dup_chonky_num(b);
 	if (b_c == NULL) {
 		dealloc_chonky_num(a_c);
