@@ -242,18 +242,6 @@ CHONKY_FAILABLE static BigNum* dup_chonky_num(const BigNum* num) {
 	return duped;
 }
 
-CHONKY_FAILABLE static BigNum* copy_chonky_num(BigNum* num, const BigNum* src) {
-	num -> data = (u8*) realloc(num -> data, src -> size * sizeof(u8));
-	if (num -> data == NULL) {
-		WARNING_LOG("Failed to resize data buffer.");
-		return NULL;
-	}
-
-	mem_cpy(num -> data, src -> data, num -> size);
-	
-	return num;
-}
-
 static u64 chonky_real_size(const BigNum* num) {
 	u64 size = num -> size;
 	for (s64 i = num -> size - 1; i >= 0; --i) {
@@ -621,16 +609,25 @@ static BigNum* __chonky_sub(BigNum* res, const BigNum* a, const BigNum* b) {
 }
 
 CHONKY_FAILABLE static BigNum* __chonky_mul_s(BigNum* res, const BigNum* a, const BigNum* b) {
-	u64 a_size = align_64(chonky_real_size(a));
-	u64 b_size = align_64(chonky_real_size(b));
-	CHONKY_ASSERT(res -> size > (a_size + b_size));
-	
+	u64 a_size = chonky_real_size_64(a);
+	u64 b_size = chonky_real_size_64(b);
+	u64 size = res -> size / 8;
+	CHONKY_ASSERT(size > (a_size + b_size));
+
 	BigNum* res_c = alloc_chonky_num(NULL, res -> size, 0);
 	if (res_c == NULL) return NULL;
 
-	for (u64 i = 0; i < (a_size / 4); ++i) {
-		for (u64 j = 0; j < (b_size / 4); ++j) {
-			*((u128*) (res_c -> data + (i + j) * 4)) += (u64) ((u32*) a -> data)[i] * ((u32*) b -> data)[j];
+	for (u64 i = 0; i < a_size; ++i) {
+		for (u64 j = 0; j < b_size; ++j) {
+			u128 product = ((u128) (a -> data_64)[i]) * (b -> data_64)[j];
+			u64 carry = _addcarry_u64(0, (res_c -> data_64)[i + j], product & 0xFFFFFFFFFFFFFFFF, res_c -> data_64 + i + j);
+			
+			u64 rem = (product >> 64) & 0xFFFFFFFFFFFFFFFF;
+			carry = _addcarry_u64(carry, (res_c -> data_64)[i + j + 1], rem, res_c -> data_64 + i + j + 1);
+			
+			for (u64 t = i + j + 2; carry && t < size; ++t) {
+				carry = _addcarry_u64(carry, (res_c -> data_64)[t], 0, res_c -> data_64 + t);
+			}
 		}
 	}
 	
@@ -684,6 +681,7 @@ CHONKY_FAILABLE static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder,
 	const u64 low_limit = chonky_real_size(b_c) - 1;
 	u64 i = chonky_real_size(a_c) - 1;
 
+	u64 cnt = 0;
 	while (!chonky_is_gt(b_c, a_c)) {
 		// Perform the division with the upper components
 		const u8 additional = (low_limit >= 8) ? ((b_c -> data)[low_limit - 8]) && ((b_c -> data)[low_limit - 8] >= (a_c -> data)[i - 7]) : 0;
@@ -703,9 +701,12 @@ CHONKY_FAILABLE static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder,
 		
 		*((u64*) (quotient -> data + i - low_limit)) += q_hat;
 		i = chonky_real_size(a_c) - 1;
+		cnt++;
 	}
 	
-	if (remainder != NULL) copy_chonky_num(remainder, a_c);
+	if (remainder != NULL) {
+		mem_cpy(remainder -> data, a_c -> data, remainder -> size);
+	}
 
 	DEALLOC_CHONKY_NUMS(a_c, b_c);
 
@@ -900,11 +901,15 @@ CHONKY_FAILABLE static BigNum* __chonky_pow_mod(BigNum* res, const BigNum* num, 
 				}
 			}
 
+			PRINT_CHONKY_NUM(base);
+			
 			if (__chonky_mul_s(temp_base, base, base) == NULL) {
 				DEALLOC_CHONKY_NUMS(base, temp, temp_base);
 				return NULL;
 			}
 			
+			PRINT_CHONKY_NUM(temp_base);
+
 			if (chonky_is_gt(temp_base, mod_base)) {
 				if (__chonky_mod(base, temp_base, mod_base) == NULL) {
 					DEALLOC_CHONKY_NUMS(base, temp, temp_base);
@@ -913,6 +918,8 @@ CHONKY_FAILABLE static BigNum* __chonky_pow_mod(BigNum* res, const BigNum* num, 
 			} else {
 				mem_cpy(base -> data, temp_base -> data, base -> size);
 			}
+			PRINT_CHONKY_NUM(base);
+			printf("----------\n");
 		}
 	}
 	
