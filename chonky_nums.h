@@ -901,15 +901,11 @@ CHONKY_FAILABLE static BigNum* __chonky_pow_mod(BigNum* res, const BigNum* num, 
 				}
 			}
 
-			PRINT_CHONKY_NUM(base);
-			
 			if (__chonky_mul_s(temp_base, base, base) == NULL) {
 				DEALLOC_CHONKY_NUMS(base, temp, temp_base);
 				return NULL;
 			}
 			
-			PRINT_CHONKY_NUM(temp_base);
-
 			if (chonky_is_gt(temp_base, mod_base)) {
 				if (__chonky_mod(base, temp_base, mod_base) == NULL) {
 					DEALLOC_CHONKY_NUMS(base, temp, temp_base);
@@ -918,8 +914,6 @@ CHONKY_FAILABLE static BigNum* __chonky_pow_mod(BigNum* res, const BigNum* num, 
 			} else {
 				mem_cpy(base -> data, temp_base -> data, base -> size);
 			}
-			PRINT_CHONKY_NUM(base);
-			printf("----------\n");
 		}
 	}
 	

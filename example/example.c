@@ -54,10 +54,11 @@ int example_b(void) {
 }
 
 int example_c(void) {
-	BigNum* a = alloc_chonky_num_from_hex_string("F2B9F3D7464C523FA37B5CE8DAFF2272BF29E5731C0FC57CB4A6E484085C1FA3F6955D6F9B7BD01278D4B8CFE59F97DF180FAE2E9F651BBDA3A2A3E0F677284E");
+	/* BigNum* a = alloc_chonky_num_from_hex_string("F2B9F3D7464C523FA37B5CE8DAFF2272BF29E5731C0FC57CB4A6E484085C1FA3F6955D6F9B7BD01278D4B8CFE59F97DF180FAE2E9F651BBDA3A2A3E0F677284E"); */
+	BigNum* a = alloc_chonky_num_from_hex_string("6666666666666666666666666666666666666666666666666666666666666658");
 	if (a == NULL) return 1;
 	
-	BigNum* b = alloc_chonky_num_from_hex_string("FF");
+	BigNum* b = alloc_chonky_num_from_hex_string("02");
 	if (b == NULL) return 1;
 	
 	BigNum* c = alloc_chonky_num_from_hex_string("7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFED");

@@ -84,11 +84,11 @@ def test_sub(chonky_nums):
 
 @timed
 def test_mul(chonky_nums):   
-    for _ in range(10000):
+    for i in range(10000):
         a = random.getrandbits(512)
         b = random.getrandbits(512)
         expected = a * b
-
+        
         a_bytes = int_to_bytes(a)
         b_bytes = int_to_bytes(b)
 
@@ -255,7 +255,7 @@ def test_pow_mod(chonky_nums):
         a_bytes = int_to_bytes(a)
         b_bytes = int_to_bytes(b)
         c_bytes = int_to_bytes(c)
-
+        
         big_a = chonky_nums.alloc_chonky_num(ctypes.cast(a_bytes, ctypes.POINTER(ctypes.c_uint8)), 64, 0)
         big_b = chonky_nums.alloc_chonky_num(ctypes.cast(b_bytes, ctypes.POINTER(ctypes.c_uint8)), 64, 0)
         big_c = chonky_nums.alloc_chonky_num(ctypes.cast(c_bytes, ctypes.POINTER(ctypes.c_uint8)), 64, 0)
