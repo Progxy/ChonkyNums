@@ -244,13 +244,13 @@ def test_mod_mersenne(chonky_nums):
 
 @timed
 def test_pow_mod(chonky_nums):   
-    for i in range(10000):
-        print(f"Testing {i + 1} out of 10000", end='\r')
+    for i in range(1000):
+        print(f"Testing {i + 1} out of 1000", end='\r')
         
         a = random.getrandbits(512)
-        b = random.getrandbits(8)
+        b = random.getrandbits(512)
         c = random.getrandbits(512)
-        expected = (a ** b) % c
+        expected = pow(a, b, c)
         
         a_bytes = int_to_bytes(a)
         b_bytes = int_to_bytes(b)
@@ -290,8 +290,8 @@ def test_pow_mod_mersenne(chonky_nums):
         print(f"Testing {i + 1} out of 10000", end='\r')
         
         a = random.getrandbits(512)
-        b = random.getrandbits(8)
-        expected = (a ** b) % c
+        b = random.getrandbits(512)
+        expected = pow(a, b, c)
 
         a_bytes = int_to_bytes(a)
         b_bytes = int_to_bytes(b)
