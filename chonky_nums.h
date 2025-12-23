@@ -542,7 +542,7 @@ EXPORT_FUNCTION void print_chonky_num(char* name, BigNum* num, bool use_hex) {
 		}
 
 		char* buf = calloc(num_dp -> size * 3, sizeof(u8));
-		if (num_dp == NULL) {
+		if (buf == NULL) {
 			dealloc_chonky_num(num_dp);
 			WARNING_LOG("Failed to alloc the buffer.");
 			return;
