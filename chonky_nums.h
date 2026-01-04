@@ -18,8 +18,6 @@
 #ifndef _CHONKY_NUMS_H_
 #define _CHONKY_NUMS_H_
 
-#include <immintrin.h>
-
 #define EXPORT_FUNCTION extern
 #define EXPORT_ENUM
 #define EXPORT_STRUCTURE
@@ -169,6 +167,39 @@ static char* reverse_str(char* str) {
 }
 
 #endif // _CHONKY_NUMS_UTILS_IMPLEMENTATION_
+
+#if defined(__aarch64__) || defined(__arm__)
+	static inline u8 _addcarry_u64(u64 carry_in, u64 a, u64 b, u64* res) {
+	  	u64 temp = 0, carry_out = 0, zero = 0;
+	    __asm__ volatile (
+	        "cmp  %[carry_in], #1\n\t"
+	        "adcs  %[temp], %[a], %[b]\n\t"
+	        "adcs  %[carry_out], %[zero], %[zero]\n\t"
+	        "str  %[temp], [%[res]]\n\t"
+	        : [temp]  "=r" (temp), [carry_out] "=r" (carry_out)
+	        : [a] "r" (a), [b] "r" (b), [carry_in] "r" (carry_in), [res] "r" (res), [zero] "r" (zero)
+	        : "cc", "memory"
+	    );
+	    return carry_out;
+	}
+
+	static inline u8 _subborrow_u64(u64 carry_in, u64 a, u64 b, u64* res) {
+		u64 temp = 0, carry_out = 0, zero = 0;
+		carry_in = !carry_in;
+		__asm__ volatile (
+			"cmp  %[carry_in], #1\n\t"
+			"sbcs  %[temp], %[a], %[b]\n\t"
+			"adcs  %[carry_out], %[zero], %[zero]\n\t"
+			"str  %[temp], [%[res]]\n\t"
+			: [temp]  "=r" (temp), [carry_out] "=r" (carry_out)
+			: [a] "r" (a), [b] "r" (b), [carry_in] "r" (carry_in), [res] "r" (res), [zero] "r" (zero)
+			: "cc", "memory"
+		);
+		return !carry_out;
+	}
+#else
+	#include <immintrin.h>
+#endif
 
 // TODO: Refactor a bit and clean (also maybe some extra debug/warning prints
 // for easier tracking of faults/errors).
@@ -681,7 +712,6 @@ CHONKY_FAILABLE static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder,
 	const u64 low_limit = chonky_real_size(b_c) - 1;
 	u64 i = chonky_real_size(a_c) - 1;
 
-	u64 cnt = 0;
 	while (!chonky_is_gt(b_c, a_c)) {
 		// Perform the division with the upper components
 		const u8 additional = (low_limit >= 8) ? ((b_c -> data)[low_limit - 8]) && ((b_c -> data)[low_limit - 8] >= (a_c -> data)[i - 7]) : 0;
@@ -701,7 +731,6 @@ CHONKY_FAILABLE static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder,
 		
 		*((u64*) (quotient -> data + i - low_limit)) += q_hat;
 		i = chonky_real_size(a_c) - 1;
-		cnt++;
 	}
 	
 	if (remainder != NULL) {
