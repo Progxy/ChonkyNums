@@ -77,9 +77,9 @@ int example_c(void) {
 }
 
 int main(void) {
-	if (example_a()) return 1;	
-	if (example_b()) return 1;	
-	if (example_c()) return 1;	
+	if (example_a()) return 1;
+	if (example_b()) return 1;
+	if (example_c()) return 1;
 	return 0;
 }
 
