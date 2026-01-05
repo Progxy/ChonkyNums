@@ -201,6 +201,7 @@ static char* reverse_str(char* str) {
 	#include <immintrin.h>
 #endif
 
+// TODO: Refactor the operations in order to achieve constant time operations
 // TODO: Refactor a bit and clean (also maybe some extra debug/warning prints
 // for easier tracking of faults/errors).
 /// -----------------------------------------
