@@ -600,6 +600,7 @@ EXPORT_FUNCTION void print_chonky_num(char* name, BigNum* num, bool use_hex) {
 /// -------------------------------
 ///  Internal Operations Functions
 /// -------------------------------
+// NOTE: The following operation is constant time
 static BigNum* __chonky_add(BigNum* res, const BigNum* a, const BigNum* b) {
  	// case 1: a > b:  first[0] = a, second[1 + 0] = second[1] = b
     // case 2: b > a:  first[1] = b, second[0 + 0] = second[0] = a
@@ -626,6 +627,7 @@ static BigNum* __chonky_add(BigNum* res, const BigNum* a, const BigNum* b) {
 	return res;
 }
 
+// NOTE: The following operation is constant time
 static BigNum* __chonky_sub(BigNum* res, const BigNum* a, const BigNum* b) {
 	u64 carry = 0;
 	for (u64 i = 0; i < res -> size / 8; ++i) {
