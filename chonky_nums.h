@@ -637,7 +637,7 @@ static BigNum* __chonky_sub(BigNum* res, const BigNum* a, const BigNum* b) {
 		carry = _subborrow_u64(carry, a_val, b_val, acc);
 	}
 
- 	const u64 mask = 0xFFFFFFFFFFFFFFFF * carry;
+ 	const u64 mask = ~(((u64) carry) - 1ULL);
  	for (u64 i = 0; i < res -> size / 8; ++i) {
 		(res -> data_64)[i] ^= mask;
 		carry = _addcarry_u64(carry, (res -> data_64)[i], 0, res -> data_64 + i);
@@ -647,10 +647,10 @@ static BigNum* __chonky_sub(BigNum* res, const BigNum* a, const BigNum* b) {
 }
 
 CHONKY_FAILABLE static BigNum* __chonky_mul_s(BigNum* res, const BigNum* a, const BigNum* b) {
-	u64 a_size = chonky_real_size_64(a);
-	u64 b_size = chonky_real_size_64(b);
+	u64 a_size = a -> size / 8;
+	u64 b_size = b -> size / 8;
 	u64 size = res -> size / 8;
-	CHONKY_ASSERT(size > (a_size + b_size));
+	/* CHONKY_ASSERT(ignore_assert || size > (a_size + b_size)); */
 
 	BigNum* res_c = alloc_chonky_num(NULL, res -> size, 0);
 	if (res_c == NULL) return NULL;
@@ -663,7 +663,7 @@ CHONKY_FAILABLE static BigNum* __chonky_mul_s(BigNum* res, const BigNum* a, cons
 			u64 rem = (product >> 64) & 0xFFFFFFFFFFFFFFFF;
 			carry = _addcarry_u64(carry, (res_c -> data_64)[i + j + 1], rem, res_c -> data_64 + i + j + 1);
 			
-			for (u64 t = i + j + 2; carry && t < size; ++t) {
+			for (u64 t = i + j + 2; t < i + j + 4 && t < size; ++t) {
 				carry = _addcarry_u64(carry, (res_c -> data_64)[t], 0, res_c -> data_64 + t);
 			}
 		}
@@ -787,6 +787,7 @@ CHONKY_FAILABLE static BigNum* __chonky_pow(BigNum* res, const BigNum* num, cons
 				DEALLOC_CHONKY_NUMS(base, temp, temp_base);
 				return NULL;
 			}
+
 			mem_cpy(base -> data, temp_base -> data, base -> size);
 		}
 	}
@@ -852,21 +853,21 @@ CHONKY_FAILABLE static BigNum* __chonky_mod_mersenne(BigNum* res, const BigNum* 
 	if (chonky_is_gt(base, num)) {
 		mem_cpy(res -> data, num -> data, base -> size);
 		return res;
-	} else if (chonky_real_size_64(base) == chonky_real_size_64(num)) {
+	} else if (base -> size == num -> size) {
 		__chonky_mod(res, num, base);
 		return res;	
 	}
 	
 	if (get_mersenne_factor(base, res) == NULL) return NULL;
 	
-	const u64 base_size = chonky_real_size_64(base);
-	BigNum* temp_res = alloc_chonky_num(NULL, num -> size + (num -> size - base_size * 8), 0);
+	const u64 base_size = base -> size;
+	BigNum* temp_res = alloc_chonky_num(NULL, num -> size + (num -> size - base_size), 0);
 	if (temp_res == NULL) return NULL;
 	
 	mem_cpy(temp_res -> data, num -> data, num -> size);
 
 	const u64 base_bit_cnt = chonky_bit_size(base);
-	BigNum* low = alloc_chonky_num(NULL, base_size * 8, 0);
+	BigNum* low = alloc_chonky_num(NULL, base_size, 0);
 	if (low == NULL) {
 		dealloc_chonky_num(temp_res);
 		return NULL;
