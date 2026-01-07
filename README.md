@@ -3,6 +3,7 @@
 > [!WARNING]
 > Note the following branch aims to offer a constant-time (against timing based attacks), and cryptographically secure implementation.
 > Furthermore, note that the following is under "active" development (take that into consideration), and only the marked functions are secure (with `CHONKY_CT`).
+> Finally, note that once this branch will reach its scope it will be merged back with the `master` branch.
 
 **ChonkyNums** is a C library for arbitrary-precision integer (big number) arithmetic, providing fast and memory-safe operations for working with "chonky" (large) numbers that exceed standard integer sizes. It includes a well-defined API for core big number manipulation, algebraic operations, type safety, and debugging/logging.
 
