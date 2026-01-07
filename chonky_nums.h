@@ -657,12 +657,15 @@ CHONKY_FAILABLE static BigNum* __chonky_mul_s(BigNum* res, const BigNum* a, cons
 
 	for (u64 i = 0; i < a_size; ++i) {
 		for (u64 j = 0; j < b_size; ++j) {
+			if (i + j >= res -> size / 8) break;
 			u128 product = ((u128) (a -> data_64)[i]) * (b -> data_64)[j];
 			u64 carry = _addcarry_u64(0, (res_c -> data_64)[i + j], product & 0xFFFFFFFFFFFFFFFF, res_c -> data_64 + i + j);
 			
 			u64 rem = (product >> 64) & 0xFFFFFFFFFFFFFFFF;
-			carry = _addcarry_u64(carry, (res_c -> data_64)[i + j + 1], rem, res_c -> data_64 + i + j + 1);
-			
+			if (i + j + 1 < res -> size / 8) {
+				carry = _addcarry_u64(carry, (res_c -> data_64)[i + j + 1], rem, res_c -> data_64 + i + j + 1);
+			} 
+
 			for (u64 t = i + j + 2; t < i + j + 4 && t < size; ++t) {
 				carry = _addcarry_u64(carry, (res_c -> data_64)[t], 0, res_c -> data_64 + t);
 			}
@@ -750,10 +753,10 @@ CHONKY_FAILABLE static BigNum* __chonky_div(BigNum* quotient, BigNum* remainder,
 }
 
 CHONKY_FAILABLE static BigNum* __chonky_pow(BigNum* res, const BigNum* num, const BigNum* exp) {
-    BigNum* temp = dup_chonky_num(res);
+	BigNum* temp = alloc_chonky_num(NULL, res -> size * 2, num -> sign);
 	if (temp == NULL) return NULL;
 	
-	BigNum* temp_base = alloc_chonky_num(NULL, res -> size, num -> sign);
+	BigNum* temp_base = alloc_chonky_num(NULL, res -> size * 2, num -> sign);
 	if (temp_base == NULL) {
 		dealloc_chonky_num(temp);
 		return NULL;
