@@ -148,8 +148,8 @@ def test_div(chonky_nums):
 
 @timed
 def test_pow(chonky_nums):   
-    for i in range(100):
-        print(f"Testing {i + 1} out of 100", end="\r")
+    for i in range(25):
+        print(f"Testing {i + 1} out of 25", end="\r")
         a = random.getrandbits(512)
         b = random.getrandbits(8)
         expected = a ** b

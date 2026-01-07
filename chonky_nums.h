@@ -22,6 +22,7 @@
 #define EXPORT_ENUM
 #define EXPORT_STRUCTURE
 #define CHONKY_FAILABLE
+#define CHONKY_CT
 
 #ifndef PACKED_STRUCT
 	#define PACKED_STRUCT __attribute__((packed))
@@ -278,15 +279,6 @@ static u64 chonky_real_size(const BigNum* num) {
 	u64 size = num -> size;
 	for (s64 i = num -> size - 1; i >= 0; --i) {
 		if ((num -> data)[i]) break;
-		size--;
-	}
-	return size;
-}
-
-static u64 chonky_real_size_64(const BigNum* num) {
-	u64 size = num -> size / 8;
-	for (s64 i = (num -> size / 8) - 1; i >= 0; --i) {
-		if ((num -> data_64)[i]) break;
 		size--;
 	}
 	return size;
@@ -600,11 +592,7 @@ EXPORT_FUNCTION void print_chonky_num(char* name, BigNum* num, bool use_hex) {
 /// -------------------------------
 ///  Internal Operations Functions
 /// -------------------------------
-// NOTE: The following operation is constant time
-static BigNum* __chonky_add(BigNum* res, const BigNum* a, const BigNum* b) {
- 	// case 1: a > b:  first[0] = a, second[1 + 0] = second[1] = b
-    // case 2: b > a:  first[1] = b, second[0 + 0] = second[0] = a
- 	// case 3: b == a: first[0] = a, second[0 + 1] = second[1] = b
+CHONKY_CT static BigNum* __chonky_add(BigNum* res, const BigNum* a, const BigNum* b) {
  	const BigNum* operands[2] = { a, b };
  	const BigNum* first_operand = operands[a -> size < b -> size];
  	const BigNum* second_operand = operands[(a -> size > b -> size) + (a -> size == b -> size)];
@@ -627,8 +615,7 @@ static BigNum* __chonky_add(BigNum* res, const BigNum* a, const BigNum* b) {
 	return res;
 }
 
-// NOTE: The following operation is constant time
-static BigNum* __chonky_sub(BigNum* res, const BigNum* a, const BigNum* b) {
+CHONKY_CT static BigNum* __chonky_sub(BigNum* res, const BigNum* a, const BigNum* b) {
 	u64 carry = 0;
 	for (u64 i = 0; i < res -> size / 8; ++i) {
 		u64* acc = res -> data_64 + i;
@@ -646,11 +633,10 @@ static BigNum* __chonky_sub(BigNum* res, const BigNum* a, const BigNum* b) {
 	return res;
 }
 
-CHONKY_FAILABLE static BigNum* __chonky_mul_s(BigNum* res, const BigNum* a, const BigNum* b) {
+CHONKY_CT CHONKY_FAILABLE static BigNum* __chonky_mul_s(BigNum* res, const BigNum* a, const BigNum* b) {
 	u64 a_size = a -> size / 8;
 	u64 b_size = b -> size / 8;
 	u64 size = res -> size / 8;
-	/* CHONKY_ASSERT(ignore_assert || size > (a_size + b_size)); */
 
 	BigNum* res_c = alloc_chonky_num(NULL, res -> size, 0);
 	if (res_c == NULL) return NULL;
