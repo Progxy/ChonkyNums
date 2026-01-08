@@ -171,7 +171,7 @@ static char* reverse_str(char* str) {
 #if defined(__aarch64__) || defined(__arm__)
 	static inline u8 _addcarry_u64(u64 carry_in, u64 a, u64 b, u64* res) {
 	  	u64 temp = 0, carry_out = 0, zero = 0;
-	    __asm__ inline (
+	    __asm__ volatile (
 	        "cmp  %[carry_in], #1\n\t"
 	        "adcs  %[temp], %[a], %[b]\n\t"
 	        "adcs  %[carry_out], %[zero], %[zero]\n\t"
@@ -186,7 +186,7 @@ static char* reverse_str(char* str) {
 	static inline u8 _subborrow_u64(u64 carry_in, u64 a, u64 b, u64* res) {
 		u64 temp = 0, carry_out = 0, zero = 0;
 		carry_in = !carry_in;
-		__asm__ inline (
+		__asm__ volatile (
 			"cmp  %[carry_in], #1\n\t"
 			"sbcs  %[temp], %[a], %[b]\n\t"
 			"adcs  %[carry_out], %[zero], %[zero]\n\t"
@@ -601,45 +601,41 @@ EXPORT_FUNCTION void print_chonky_num(char* name, BigNum* num, bool use_hex) {
 /// -------------------------------
 // NOTE: The following operation is constant time
 static BigNum* __chonky_add(BigNum* res, const BigNum* a, const BigNum* b) {
- 	// case 1: a > b:  first[0] = a, second[1 + 0] = second[1] = b
-    // case 2: b > a:  first[1] = b, second[0 + 0] = second[0] = a
- 	// case 3: b == a: first[0] = a, second[0 + 1] = second[1] = b
- 	const BigNum* operands[2] = { a, b };
- 	const BigNum* first_operand = operands[a -> size < b -> size];
- 	const BigNum* second_operand = operands[(a -> size > b -> size) + (a -> size == b -> size)];
+	const u64 a_size = chonky_real_size_64(a);
+	const u64 b_size = chonky_real_size_64(b);
+	const u64 size = MIN(res -> size / 8, MAX(a_size, b_size) + 1); 
 
-    u64 i = 0;
 	u64 carry = 0;
- 	for (i = 0; i < second_operand -> size / 8; ++i) {
+	for (u64 i = 0; i < size; ++i) {
 		u64* acc = res -> data_64 + i;
-		carry = _addcarry_u64(carry, (first_operand -> data_64)[i], (second_operand -> data_64)[i], acc);
+		const u64 a_val = (i < a_size) ? (a -> data_64)[i] : 0;
+		const u64 b_val = (i < b_size) ? (b -> data_64)[i] : 0;
+		carry = _addcarry_u64(carry, a_val, b_val, acc);
 	}
-
-	 for (; i < first_operand -> size / 8; ++i) {
-		carry = _addcarry_u64(carry, 0, (first_operand -> data_64)[i], res -> data_64 + i);
-	 }
-
-     for (; i < res -> size / 8; ++i) {
-		carry = _addcarry_u64(carry, 0, 0, res -> data_64 + i);
-	 }
 
 	return res;
 }
 
 // NOTE: The following operation is constant time
 static BigNum* __chonky_sub(BigNum* res, const BigNum* a, const BigNum* b) {
+	const u64 a_size = chonky_real_size_64(a);
+	const u64 b_size = chonky_real_size_64(b);
+	const u64 size = MIN(res -> size / 8, MAX(a_size, b_size) + 1); 
+	
 	u64 carry = 0;
-	for (u64 i = 0; i < res -> size / 8; ++i) {
+	for (u64 i = 0; i < size; ++i) {
 		u64* acc = res -> data_64 + i;
-		const u64 a_val = (i < a -> size / 8) * (a -> data_64)[i % (a -> size / 8)];
-		const u64 b_val = (i < b -> size / 8) * (b -> data_64)[i % (b -> size / 8)];
+		const u64 a_val = (i < a_size) ? (a -> data_64)[i] : 0;
+		const u64 b_val = (i < b_size) ? (b -> data_64)[i] : 0;
 		carry = _subborrow_u64(carry, a_val, b_val, acc);
 	}
-
- 	const u64 mask = 0xFFFFFFFFFFFFFFFF * carry;
- 	for (u64 i = 0; i < res -> size / 8; ++i) {
-		(res -> data_64)[i] ^= mask;
-		carry = _addcarry_u64(carry, (res -> data_64)[i], 0, res -> data_64 + i);
+	
+	if (res -> sign) {
+		for (u64 i = 0; i < size; ++i) {
+			u64* acc = res -> data_64 + i;
+			*acc = ~*acc;
+		   	if (i == 0) (*acc)++;
+		}
 	}
 
 	return res;
